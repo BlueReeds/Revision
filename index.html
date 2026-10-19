@@ -205,6 +205,34 @@ pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10p
 .syncdot { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .syncdot i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
 .syncdot.on i { background: var(--ok); } .syncdot.off i { background: var(--bad); }
+
+/* ---------- Photos ---------- */
+.hero { min-height: 340px; }
+.hero .inner { min-height: 340px; }
+.hero-photo { background-color: var(--bg-2); background-position: 72% 40%; }
+.hero-photo::after { background:
+  linear-gradient(90deg, color-mix(in srgb, var(--bg) 92%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 42%, transparent 72%),
+  linear-gradient(0deg, var(--bg) 0%, transparent 38%); }
+@media (max-width: 640px) {
+  .hero-photo { background-position: 78% 30%; }
+  .hero-photo::after { background: linear-gradient(0deg, var(--bg) 6%, color-mix(in srgb, var(--bg) 70%, transparent) 50%, color-mix(in srgb, var(--bg) 20%, transparent) 100%); }
+  .hero .inner { min-height: 420px; }
+}
+.hero h1 { text-shadow: 0 2px 18px rgba(0,0,0,.45); }
+.hero .eyebrow { text-shadow: 0 1px 10px rgba(0,0,0,.7); }
+.subject .band { height: 132px; background-size: cover; background-position: center; background-color: var(--surface-2); }
+.subject .band::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, color-mix(in srgb, var(--surface) 70%, transparent) 0%, transparent 55%); box-shadow: inset 0 -4px 0 var(--sc); }
+@media (hover: hover) { .subject .band { transition: background-size .4s; } }
+.page-hero { position: relative; overflow: hidden; border-radius: var(--r); min-height: 190px; background-size: cover; background-position: center; background-color: var(--surface-2); display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 20px; border: 1px solid var(--line); }
+.page-hero.tall { min-height: 260px; }
+.page-hero::before { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, color-mix(in srgb, var(--bg) 92%, transparent) 0%, color-mix(in srgb, var(--bg) 45%, transparent) 55%, color-mix(in srgb, var(--bg) 10%, transparent) 100%); }
+.page-hero > * { position: relative; }
+.page-hero h2 { font-size: clamp(32px, 6vw, 48px); font-style: italic; text-shadow: 0 2px 14px rgba(0,0,0,.5); }
+.page-hero .ph-in { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.page-hero .ph-sub { margin: 2px 0 0; color: var(--fg); opacity: .85; font-weight: 500; }
+.page-hero .eyebrow { text-shadow: 0 1px 8px rgba(0,0,0,.5); }
+.subj-thumb { height: 70px; border-radius: 10px; background-size: cover; background-position: center; margin-bottom: 8px; }
+.lock { margin-top: 0; }
 </style>
 </head>
 <body><header class="topbar gut">

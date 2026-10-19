@@ -49,7 +49,7 @@ Ce code empêche seulement l'élève d'ouvrir l'espace parents par erreur. Ce n'
 ## Étape 3 : mettre le site en ligne avec GitHub Pages
 
 1. Sur **github.com**, clique sur **+** → **New repository**. Nomme-le `ride-et-revise`, laisse-le en **Public**, puis **Create repository**.
-2. Clique sur **uploading an existing file**. Dézippe le dossier sur ton ordinateur, puis glisse **tout son contenu** dans la page : `index.html`, `app.js`, `config.js`, `README.md` et le dossier `contenu`. `index.html` doit être à la racine, pas dans un sous-dossier.
+2. Clique sur **uploading an existing file**. Dézippe le dossier sur ton ordinateur, puis glisse **tout son contenu** dans la page : `index.html`, `app.js`, `config.js`, `README.md` et les dossiers `contenu` et `images`. `index.html` doit être à la racine, pas dans un sous-dossier.
 3. Clique sur **Commit changes**.
 4. Va dans **Settings** → **Pages**. Sous « Build and deployment », choisis **Deploy from a branch**, puis la branche **main** et le dossier **/ (root)**, et clique sur **Save**.
 5. Attends une à deux minutes. Ton site est en ligne à l'adresse `https://ton-pseudo.github.io/ride-et-revise/`.
@@ -83,6 +83,26 @@ parent.postMessage({ type: "quiz-score", score: 9, total: 12 }, "*");
 
 Les quiz du dossier `contenu/` le font déjà. Pour les autres quiz, l'élève tape sa note en bas de l'écran.
 
+## Les photos
+
+Les fonds viennent du dossier `images/` :
+
+| Fichier | Où il apparaît |
+|---|---|
+| `accueil.jpg` | Grand bandeau de l'accueil |
+| `sommet.jpg` | Page Matières, et 1ʳᵉ matière |
+| `rider.jpg` | Tableau de bord, et 5ᵉ matière |
+| `falaise.jpg` | Espace parents, et 3ᵉ matière |
+| `glacier.jpg`, `pierrier.jpg` | 2ᵉ et 4ᵉ matières |
+
+Pour changer une photo, envoie sur GitHub une nouvelle image **portant exactement le même nom**, dans `images/`. Elle remplace l'ancienne. Choisis des photos en paysage d'au moins 1600 pixels de large.
+
+Tu peux aussi changer les photos depuis l'appli, sans GitHub :
+- **Accueil** : Parents → Réglages → Photo de VTT.
+- **Chaque matière** : Parents → Contenu du parcours → bouton **Photo** à côté de la matière. La photo s'affiche sur la carte de la matière et en haut de ses leçons.
+
+Le dépôt GitHub est public, donc tout le monde peut voir les images qu'il contient. Utilise tes propres photos ou des photos libres de droits (par exemple sur unsplash.com ou pexels.com, recherche « mountain bike »).
+
 ## Contenu du dossier
 
 | Fichier | Rôle |
@@ -91,6 +111,7 @@ Les quiz du dossier `contenu/` le font déjà. Pour les autres quiz, l'élève t
 | `app.js` | Le fonctionnement de l'appli |
 | `config.js` | Adresse Firebase et code parents |
 | `contenu/` | Quiz et carte mentale des fractions, pour l'import de départ |
+| `images/` | Photos de fond |
 
 ## Limites de l'offre gratuite de Firebase
 

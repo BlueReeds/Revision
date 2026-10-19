@@ -51,6 +51,14 @@ function trailOf(n) {
 const trailHtml = n => { const t = trailOf(n); return `<span class="trail"><i style="background:${t.c}"></i>${t.name}</span>`; };
 let toastT;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3400); }
+const PHOTO = n => `images/${n}.jpg`;
+const SUBJECT_PHOTO_CYCLE = ["sommet", "glacier", "falaise", "pierrier", "rider"];
+const subjectPhoto = s => { const i = Math.max(0, S.subjects.findIndex(x => x.id === s?.id)); return (s && S.subjectPhotos[s.id]) || PHOTO(SUBJECT_PHOTO_CYCLE[i % SUBJECT_PHOTO_CYCLE.length]); };
+const cssUrl = u => `url('${String(u).replace(/'/g, "%27")}')`;
+function pageHero(eyebrow, title, img, opts = {}) {
+  return `<div class="page-hero ${opts.tall ? "tall" : ""}" style="background-image:${cssUrl(img)};${opts.pos ? `background-position:${opts.pos};` : ""}">
+    <div class="ph-in"><span class="eyebrow"${opts.color ? ` style="color:${esc(opts.color)}"` : ""}>${eyebrow}</span><h2>${title}</h2>${opts.sub ? `<p class="ph-sub">${opts.sub}</p>` : ""}</div>${opts.side ? `<div class="ph-side">${opts.side}</div>` : ""}</div>`;
+}
 const SUBJECT_COLORS = ["#ff7a2f", "#3d8bff", "#5fd38d", "#c77dff", "#ffc847", "#ff6470", "#5cc8d6", "#a3e05a"];
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const store = {
@@ -86,7 +94,7 @@ function dbMessage(e) {
 /* ======================= State ======================= */
 const S = {
   ready: false, error: "",
-  subjects: [], lessons: [], quizzes: [], maps: [], results: [], settings: {}, cover: null, coverV: null,
+  subjectPhotos: {}, subjectPhotoV: {}, subjects: [], lessons: [], quizzes: [], maps: [], results: [], settings: {}, cover: null, coverV: null,
   view: "home", subjectId: null, lessonId: null, dashFilter: "all", parentForm: "quiz",
   unlocked: store.sget("rr-parent") === "1",
 };
@@ -101,6 +109,12 @@ async function loadAll() {
     S.maps = asList(cat?.maps);
     S.results = asList(res).filter(r => r && r.total > 0).sort((a, b) => b.at - a.at);
     S.settings = set || {};
+    await Promise.all(S.subjects.map(async sb => {
+      if (!sb.photoV) { delete S.subjectPhotos[sb.id]; return; }
+      if (S.subjectPhotoV[sb.id] === sb.photoV) return;
+      const ph = await api(`subjectPhotos/${sb.id}`).catch(() => null);
+      if (ph?.data) { S.subjectPhotos[sb.id] = ph.data; S.subjectPhotoV[sb.id] = sb.photoV; }
+    }));
     if (S.settings.coverV && S.settings.coverV !== S.coverV) {
       const c = await api("cover").catch(() => null);
       S.cover = c?.data || null; S.coverV = S.settings.coverV;
@@ -131,8 +145,9 @@ function renderHero() {
     <div class="stat"><div class="v num">${dplus.toLocaleString("fr-FR")} m</div><div class="l">de D+ gagné</div></div>
     <div class="stat"><div class="v">${last ? ago(last.at) : "–"}</div><div class="l">dernière sortie</div></div>`;
   const photo = $("#hero-photo");
-  if (S.cover) { photo.style.backgroundImage = `url("${S.cover}")`; photo.hidden = false; $("#hero-art").hidden = true; }
-  else { photo.hidden = true; $("#hero-art").hidden = false; }
+  photo.style.backgroundImage = cssUrl(S.cover || PHOTO("accueil"));
+  photo.classList.toggle("custom", !!S.cover);
+  photo.hidden = false;
 }
 
 function render() {
@@ -151,8 +166,7 @@ function render() {
 
 /* ---------- Première configuration ---------- */
 function viewSetup() {
-  return `<div class="setup card">
-    <span class="eyebrow">Première configuration</span><h2>Branche la base de données</h2>
+  return `<div class="setup">${pageHero("Première configuration", "Branche la base de données", PHOTO("accueil"), { pos: "70% 40%" })}<div class="card form">
     <p class="muted" style="margin:0">Les quiz et les notes sont rangés dans une base Firebase gratuite. Il faut indiquer son adresse une seule fois.</p>
     <ol>
       <li>Crée la base en suivant l'étape 1 du fichier README.</li>
@@ -162,7 +176,7 @@ function viewSetup() {
     <label class="f" for="setup-url">Adresse Firebase<input type="text" id="setup-url" placeholder="https://xxxx-default-rtdb.europe-west1.firebasedatabase.app" autocomplete="off"></label>
     <div><button class="btn" id="setup-go">Tester et connecter</button></div>
     <p class="notice" id="setup-msg" role="status"></p>
-  </div>`;
+  </div></div>`;
 }
 function wireSetup() {
   $("#setup-go")?.addEventListener("click", async () => {
@@ -184,7 +198,7 @@ function subjectCard(s, i) {
   const pct = qs.length ? Math.round(done / qs.length * 100) : 0;
   const a = avg(rs);
   return `<button class="subject" data-subject="${esc(s.id)}" style="--sc:${esc(s.color || SUBJECT_COLORS[i % 8])}">
-    <div class="band">${bandSvg(i * 97 + 13)}</div>
+    <div class="band" style="background-image:${cssUrl(subjectPhoto(s))}"></div>
     <div class="body"><h3>${esc(s.name)}</h3>
       <div class="meta num">${ls.length} leçon${ls.length > 1 ? "s" : ""} · ${qs.length} quiz${a != null ? ` · moy. ${fmtN(a)}/20` : ""}</div>
       <div class="bar" title="${pct}% des quiz faits"><i style="width:${pct}%"></i></div></div></button>`;
@@ -197,7 +211,7 @@ function viewHome() {
   const todo = S.quizzes.filter(q => !resultsOfQuiz(q.id).length).slice(0, 4);
   const recent = S.results.slice(0, 5);
   return `<div class="view">
-    <div class="sec-head"><div><span class="eyebrow">Choisis ta ligne</span><h2>Tes matières</h2></div></div>
+    <div><span class="eyebrow">Choisis ta ligne</span><h2>Tes matières</h2></div>
     <div class="grid">${S.subjects.map(subjectCard).join("")}</div>
     <div class="split">
       <div class="card"><div class="sec-head" style="margin-bottom:6px"><h3>Pas encore roulés</h3></div>
@@ -221,13 +235,13 @@ function viewSubjects() {
   if (S.lessonId && byId(S.lessons, S.lessonId)) return viewLesson();
   if (S.subjectId && byId(S.subjects, S.subjectId)) return viewSubject();
   if (!S.subjects.length) return `<div class="view">${emptyCatalog()}</div>`;
-  return `<div class="view"><div><span class="eyebrow">Toutes les lignes</span><h2>Matières</h2></div><div class="grid">${S.subjects.map(subjectCard).join("")}</div></div>`;
+  return `<div class="view">${pageHero("Toutes les lignes", "Matières", PHOTO("sommet"), { pos: "center 30%", sub: `${S.subjects.length} matière${S.subjects.length > 1 ? "s" : ""} · ${S.quizzes.length} quiz au départ` })}<div class="grid">${S.subjects.map(subjectCard).join("")}</div></div>`;
 }
 function viewSubject() {
   const s = byId(S.subjects, S.subjectId), ls = lessonsOf(s.id);
   return `<div class="view">
     <div class="crumbs"><button data-crumb="root">Matières</button><span class="muted">/</span><span>${esc(s.name)}</span></div>
-    <div><span class="eyebrow" style="color:${esc(s.color)}">Matière</span><h2>${esc(s.name)}</h2></div>
+    ${pageHero("Matière", esc(s.name), subjectPhoto(s), { color: s.color, sub: `${ls.length} leçon${ls.length > 1 ? "s" : ""}` })}
     <div class="list">${ls.length ? ls.map(l => {
       const qs = quizzesOf(l.id), ms = mapsOf(l.id), rs = S.results.filter(r => r.lessonId === l.id), a = avg(rs);
       return `<button class="lesson-row" data-lesson="${esc(l.id)}"><div class="t"><b>${esc(l.title)}</b><span class="muted num" style="font-size:14px">${qs.length} version${qs.length > 1 ? "s" : ""} de quiz · ${ms.length} carte${ms.length > 1 ? "s" : ""} mentale${ms.length > 1 ? "s" : ""}${rs.length ? ` · ${rs.length} essai${rs.length > 1 ? "s" : ""}` : ""}</span></div>
@@ -239,7 +253,7 @@ function viewLesson() {
   const qs = quizzesOf(l.id), ms = mapsOf(l.id);
   return `<div class="view">
     <div class="crumbs"><button data-crumb="root">Matières</button><span class="muted">/</span><button data-crumb="subject">${esc(s?.name)}</button><span class="muted">/</span><span>${esc(l.title)}</span></div>
-    <div><span class="eyebrow" style="color:${esc(s?.color)}">${esc(s?.name)}</span><h2>${esc(l.title)}</h2></div>
+    ${pageHero(esc(s?.name), esc(l.title), subjectPhoto(s), { color: s?.color, sub: `${qs.length} version${qs.length > 1 ? "s" : ""} de quiz · ${ms.length} carte${ms.length > 1 ? "s" : ""} mentale${ms.length > 1 ? "s" : ""}` })}
     <div class="split">
       <div class="card"><h3 style="margin-bottom:4px">Quiz</h3><p class="muted" style="margin:0 0 6px;font-size:14px">Chaque version pose d'autres questions. Fais-les toutes.</p>
         ${qs.length ? qs.map(q => {
@@ -262,7 +276,8 @@ function viewDash() {
   const subjIds = [...new Set(all.map(r => r.subjectId))];
   const canDel = S.unlocked;
   return `<div class="view">
-    <div class="sec-head"><div><span class="eyebrow">Les chronos</span><h2>Tableau de bord</h2></div>
+    ${pageHero("Les chronos", "Tableau de bord", PHOTO("rider"), { pos: "center 35%", sub: rs.length ? `Moyenne ${fmtN(a)}/20 · ${trailOf(a).name}` : "Pas encore de chrono" })}
+    <div class="sec-head">
       <div class="filters" id="dash-filters"><button class="chip" data-f="all" aria-pressed="${S.dashFilter === "all"}">Tout</button>${S.subjects.filter(s => subjIds.includes(s.id)).map(s => `<button class="chip" data-f="${esc(s.id)}" aria-pressed="${S.dashFilter === s.id}">${esc(s.name)}</button>`).join("")}</div></div>
     <div class="kpis">
       <div class="card kpi"><div class="v num">${rs.length}</div><div class="l">quiz faits</div></div>
@@ -300,8 +315,7 @@ const subjectOptions = sel => S.subjects.map(s => `<option value="${esc(s.id)}" 
 const lessonOptions = (sid, sel) => lessonsOf(sid).map(l => `<option value="${esc(l.id)}" ${l.id === sel ? "selected" : ""}>${esc(l.title)}</option>`).join("") + `<option value="__new" ${sel === "__new" ? "selected" : ""}>+ Nouvelle leçon…</option>`;
 
 function viewParents() {
-  if (!S.unlocked) return `<div class="view"><form class="card lock" id="lock-form">
-    <span class="eyebrow">Atelier mécanique</span><h2>Espace parents</h2>
+  if (!S.unlocked) return `<div class="view">${pageHero("Atelier mécanique", "Espace parents", PHOTO("falaise"), { pos: "center 30%" })}<form class="card lock" id="lock-form">
     <label class="f" for="lock-code" style="align-items:center">Code parents<input type="password" id="lock-code" inputmode="numeric" autocomplete="off"></label>
     <button class="btn" type="submit">Entrer</button><p class="notice" id="lock-msg" role="status"></p></form></div>`;
   const f = S.parentForm;
@@ -309,7 +323,7 @@ function viewParents() {
   const lid = S.pLesson && (S.pLesson === "__new" || (byId(S.lessons, S.pLesson)?.subjectId === sid)) ? S.pLesson : (lessonsOf(sid)[0]?.id || "__new");
   const hasFractions = S.quizzes.some(q => /fractions-quiz/.test(q.file || ""));
   return `<div class="view">
-    <div class="sec-head"><div><span class="eyebrow">Atelier mécanique</span><h2>Espace parents</h2></div><button class="btn ghost small" id="p-lock">Verrouiller</button></div>
+    ${pageHero("Atelier mécanique", "Espace parents", PHOTO("falaise"), { pos: "center 30%", side: `<button class="btn ghost small" id="p-lock">Verrouiller</button>` })}
     ${hasFractions ? "" : `<div class="card form"><h3>Contenu de départ</h3><p class="notice" style="margin:0">Importe en un clic les deux versions du quiz des fractions et la carte mentale.</p><div><button class="btn" id="p-seed">Importer les fractions</button></div></div>`}
     <div class="card"><form class="form" id="add-form">
       <div class="seg" role="group" aria-label="Type d'ajout">
@@ -332,7 +346,8 @@ function viewParents() {
     </form></div>
     <div class="card"><h3 style="margin-bottom:10px">Contenu du parcours</h3>
       ${S.subjects.length ? `<div class="tree">${S.subjects.map(s => `
-        <details open><summary><span class="dot" style="background:${esc(s.color)}"></span>${esc(s.name)}<span style="flex:1"></span><button class="btn small danger" data-del="subjects:${esc(s.id)}" type="button">Supprimer</button></summary>
+        <details open><summary><span class="dot" style="background:${esc(s.color)}"></span>${esc(s.name)}<span style="flex:1"></span><label class="btn small ghost" for="sp-${esc(s.id)}" onclick="event.stopPropagation()">Photo</label><input type="file" id="sp-${esc(s.id)}" data-subphoto="${esc(s.id)}" accept="image/png,image/jpeg,image/webp" hidden><button class="btn small danger" data-del="subjects:${esc(s.id)}" type="button">Supprimer</button></summary>
+          <div class="subj-thumb" style="background-image:${cssUrl(subjectPhoto(s))}"></div>
           ${lessonsOf(s.id).map(l => `<div class="lesson"><div class="item"><b class="grow">${esc(l.title)}</b><button class="btn small danger" data-del="lessons:${esc(l.id)}">Supprimer la leçon</button></div>
             ${quizzesOf(l.id).map(q => `<div class="item"><span class="pill n-mid">Quiz</span><span class="grow">${esc(q.label)} <span class="muted">· ${resultsOfQuiz(q.id).length} essai(s)</span></span><button class="btn small ghost" data-play="${esc(q.id)}">Tester</button><button class="btn small danger" data-del="quizzes:${esc(q.id)}">Supprimer</button></div>`).join("")}
             ${mapsOf(l.id).map(m => `<div class="item"><span class="pill" style="background:color-mix(in srgb,var(--sky) 18%,transparent);color:var(--sky)">Carte</span><span class="grow">${esc(m.title)}</span><button class="btn small danger" data-del="maps:${esc(m.id)}">Supprimer</button></div>`).join("")}
@@ -482,7 +497,7 @@ async function onDelete(btn) {
     if (kind === "quizzes") await delQuiz(id);
     if (kind === "maps") await delMap(id);
     if (kind === "lessons") await delLesson(id);
-    if (kind === "subjects") { for (const l of lessonsOf(id)) await delLesson(l.id); await api(`catalog/subjects/${id}`, "DELETE"); }
+    if (kind === "subjects") { for (const l of lessonsOf(id)) await delLesson(l.id); await api(`subjectPhotos/${id}`, "DELETE"); await api(`catalog/subjects/${id}`, "DELETE"); delete S.subjectPhotos[id]; }
     toast("Supprimé");
     await loadAll();
   } catch (err) { toast(dbMessage(err)); }
@@ -563,6 +578,19 @@ $("#main").addEventListener("click", e => {
   else if (t.dataset.play) openQuiz(t.dataset.play);
   else if (t.dataset.map) openMap(t.dataset.map);
   else if (t.dataset.go) { S.view = t.dataset.go; render(); }
+});
+$("#main").addEventListener("change", async e => {
+  const inp = e.target.closest("input[data-subphoto]"); if (!inp || !inp.files?.[0]) return;
+  const sid = inp.dataset.subphoto;
+  try {
+    toast("Envoi de la photo…");
+    const data = await shrinkImage(inp.files[0], 1400, .82);
+    await api(`subjectPhotos/${sid}`, "PUT", { data });
+    await api(`catalog/subjects/${sid}/photoV`, "PUT", newId());
+    S.subjectPhotoV[sid] = null;
+    toast("Photo de la matière enregistrée");
+    await loadAll();
+  } catch (err) { toast(err instanceof DbError ? dbMessage(err) : err.message); }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#player").hidden) closePlayer(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && DB && $("#player").hidden) loadAll(); });
