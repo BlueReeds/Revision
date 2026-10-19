@@ -1,0 +1,182 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Carte mentale des fractions</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Patrick+Hand&display=swap">
+<style>
+/* Layout : carte mentale sur papier à carreaux — un nœud central, quatre branches autour, les pièges en bas */
+:root {
+  --paper: #f7f9fc;
+  --grid: #dfe7f2;
+  --ink: #1d2433;
+  --muted: #5a6478;
+  --card: #ffffff;
+  --line: #c9d3e3;
+  --c-add: #1f6fd1;   --c-add-bg: #e6f0fc;
+  --c-mul: #138a5c;   --c-mul-bg: #e2f5ec;
+  --c-div: #c4560f;   --c-div-bg: #fcece0;
+  --c-base: #7a3fc4;  --c-base-bg: #f0e8fb;
+  --c-warn: #c42b3c;  --c-warn-bg: #fce6e9;
+  --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-hand: "Patrick Hand", "Comic Sans MS", cursive;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --c-add: #6aa8ff; --c-add-bg: #1a2a42; --c-mul: #4fd19c; --c-mul-bg: #16302a;
+  --c-div: #ff9a5a; --c-div-bg: #36231a; --c-base: #b98cff; --c-base-bg: #2a2140;
+  --c-warn: #ff7686; --c-warn-bg: #3a1c22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --c-add: #6aa8ff; --c-add-bg: #1a2a42; --c-mul: #4fd19c; --c-mul-bg: #16302a;
+  --c-div: #ff9a5a; --c-div-bg: #36231a; --c-base: #b98cff; --c-base-bg: #2a2140;
+  --c-warn: #ff7686; --c-warn-bg: #3a1c22; color-scheme: dark }
+
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; margin-bottom: 20px; }
+.top .lvl { font-family: var(--f-hand); font-size: 20px; color: var(--muted); }
+.top .lvl b { color: var(--c-base); font-weight: 400; }
+
+/* Fraction écrite verticalement */
+.f { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.f > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 1px; }
+.f > span:last-child { padding: 1px 3px 0; }
+.calc { font-size: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.calc .op { font-weight: 700; padding: 0 2px; }
+
+.map { display: grid; gap: 18px; grid-template-columns: 1fr; }
+.center {
+  background: var(--ink); color: var(--paper);
+  border-radius: 999px; padding: 22px 28px; text-align: center;
+  align-self: center; justify-self: center; max-width: 360px; width: 100%;
+}
+.center h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(30px, 6vw, 42px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.center p { margin: 4px 0 0; font-family: var(--f-hand); font-size: 20px; opacity: .85; }
+.center .big { display: inline-flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 22px; }
+
+.branch {
+  background: var(--card); border: 2px solid var(--c); border-radius: 18px;
+  padding: 16px 18px 18px; position: relative; min-width: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.branch h2 {
+  margin: 0; font-family: var(--f-display); font-weight: 800; font-size: 22px; color: var(--c);
+  display: flex; align-items: center; gap: 10px;
+}
+.branch h2 .sym { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: var(--card); font-size: 22px; flex: none; }
+.rule { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-weight: 700; }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.ex { border-top: 1.5px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ex .lab { font-family: var(--f-hand); font-size: 19px; color: var(--c); }
+.tip { font-family: var(--f-hand); font-size: 19px; color: var(--muted); line-height: 1.3; }
+.add  { --c: var(--c-add);  --bg: var(--c-add-bg); }
+.mul  { --c: var(--c-mul);  --bg: var(--c-mul-bg); }
+.div  { --c: var(--c-div);  --bg: var(--c-div-bg); }
+.base { --c: var(--c-base); --bg: var(--c-base-bg); }
+.warn { --c: var(--c-warn); --bg: var(--c-warn-bg); }
+.warn ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.no { text-decoration: line-through; text-decoration-color: var(--c-warn); text-decoration-thickness: 2px; }
+
+@media (min-width: 900px) {
+  .map {
+    grid-template-columns: 1fr minmax(260px, 320px) 1fr;
+    grid-template-areas: "base center add" "mul center div" "warn warn warn";
+    column-gap: 48px; row-gap: 24px;
+  }
+  .base { grid-area: base; } .add { grid-area: add; } .mul { grid-area: mul; } .div { grid-area: div; }
+  .warn { grid-area: warn; } .center { grid-area: center; }
+  .base::after, .mul::after, .add::after, .div::after {
+    content: ""; position: absolute; top: 50%; width: 48px; height: 0; border-top: 3px dotted var(--c);
+  }
+  .base::after, .mul::after { right: -51px; }
+  .add::after, .div::after { left: -51px; }
+}
+</style>
+
+</head><body><div class="wrap">
+  <div class="top">
+    <span class="lvl">Maths · <b>4<sup>e</sup></b> · Fiche à coller dans le cahier</span>
+  </div>
+
+  <div class="map">
+    <div class="center">
+      <h1>Les fractions</h1>
+      <div class="big"><span class="f"><span>a</span><span>b</span></span> <span style="font-family:var(--f-hand);font-size:19px;text-align:left">← numérateur<br>← dénominateur (jamais 0)</span></div>
+      <p>4 opérations, 4 méthodes</p>
+    </div>
+
+    <section class="branch base">
+      <h2><span class="sym">=</span>Les bases</h2>
+      <div class="rule">On peut multiplier ou diviser le haut ET le bas par le même nombre : la fraction ne change pas.</div>
+      <div class="ex">
+        <span class="lab">Simplifier</span>
+        <div class="calc"><span class="f"><span>18</span><span>24</span></span><span class="op">=</span><span class="f"><span>18 ÷ 6</span><span>24 ÷ 6</span></span><span class="op">=</span><span class="f"><span>3</span><span>4</span></span></div>
+      </div>
+      <div class="tip">Le signe « − » peut se placer devant : <span class="f"><span>−3</span><span>4</span></span> = <span class="f"><span>3</span><span>−4</span></span> = − <span class="f"><span>3</span><span>4</span></span></div>
+    </section>
+
+    <section class="branch add">
+      <h2><span class="sym">±</span>Additionner / soustraire</h2>
+      <ol class="steps">
+        <li>Mettre au <b>même dénominateur</b> (un multiple commun).</li>
+        <li>Additionner ou soustraire <b>les numérateurs</b>.</li>
+        <li><b>Garder</b> le dénominateur commun.</li>
+        <li>Simplifier si possible.</li>
+      </ol>
+      <div class="ex">
+        <span class="lab">Même dénominateur</span>
+        <div class="calc"><span class="f"><span>2</span><span>7</span></span><span class="op">+</span><span class="f"><span>3</span><span>7</span></span><span class="op">=</span><span class="f"><span>5</span><span>7</span></span></div>
+        <span class="lab">Dénominateurs différents</span>
+        <div class="calc"><span class="f"><span>5</span><span>6</span></span><span class="op">−</span><span class="f"><span>1</span><span>4</span></span><span class="op">=</span><span class="f"><span>10</span><span>12</span></span><span class="op">−</span><span class="f"><span>3</span><span>12</span></span><span class="op">=</span><span class="f"><span>7</span><span>12</span></span></div>
+      </div>
+    </section>
+
+    <section class="branch mul">
+      <h2><span class="sym">×</span>Multiplier</h2>
+      <div class="rule">Haut × haut, bas × bas. Pas besoin de même dénominateur !</div>
+      <div class="calc"><span class="f"><span>a</span><span>b</span></span><span class="op">×</span><span class="f"><span>c</span><span>d</span></span><span class="op">=</span><span class="f"><span>a × c</span><span>b × d</span></span></div>
+      <div class="ex">
+        <span class="lab">Exemple</span>
+        <div class="calc"><span class="f"><span>2</span><span>3</span></span><span class="op">×</span><span class="f"><span>4</span><span>5</span></span><span class="op">=</span><span class="f"><span>8</span><span>15</span></span></div>
+        <span class="lab">Avec un nombre entier</span>
+        <div class="calc">3<span class="op">×</span><span class="f"><span>2</span><span>7</span></span><span class="op">=</span><span class="f"><span>3 × 2</span><span>7</span></span><span class="op">=</span><span class="f"><span>6</span><span>7</span></span></div>
+      </div>
+      <div class="tip">Astuce : simplifie avant de multiplier, les calculs sont plus petits.</div>
+    </section>
+
+    <section class="branch div">
+      <h2><span class="sym">÷</span>Diviser</h2>
+      <div class="rule">Diviser par une fraction, c'est multiplier par son inverse.</div>
+      <div class="calc"><span style="font-family:var(--f-hand);font-size:19px">L'inverse de</span><span class="f"><span>c</span><span>d</span></span><span style="font-family:var(--f-hand);font-size:19px">est</span><span class="f"><span>d</span><span>c</span></span><span style="font-family:var(--f-hand);font-size:19px">(on la retourne)</span></div>
+      <div class="ex">
+        <span class="lab">Exemple</span>
+        <div class="calc"><span class="f"><span>3</span><span>4</span></span><span class="op">÷</span><span class="f"><span>5</span><span>2</span></span><span class="op">=</span><span class="f"><span>3</span><span>4</span></span><span class="op">×</span><span class="f"><span>2</span><span>5</span></span><span class="op">=</span><span class="f"><span>6</span><span>20</span></span><span class="op">=</span><span class="f"><span>3</span><span>10</span></span></div>
+      </div>
+      <div class="tip">On ne retourne que la 2<sup>e</sup> fraction, celle par laquelle on divise.</div>
+    </section>
+
+    <section class="branch warn">
+      <h2><span class="sym">!</span>Les pièges à éviter</h2>
+      <ul>
+        <li>Ne jamais additionner les dénominateurs : <span class="no"><span class="f"><span>1</span><span>2</span></span> + <span class="f"><span>1</span><span>3</span></span> = <span class="f"><span>2</span><span>5</span></span></span> &nbsp;→ la bonne réponse est <span class="f"><span>5</span><span>6</span></span>.</li>
+        <li>Priorités : × et ÷ se calculent <b>avant</b> + et −. Exemple : <span class="f"><span>1</span><span>3</span></span> + <span class="f"><span>2</span><span>3</span></span> × <span class="f"><span>3</span><span>4</span></span> = <span class="f"><span>1</span><span>3</span></span> + <span class="f"><span>1</span><span>2</span></span> = <span class="f"><span>5</span><span>6</span></span>.</li>
+        <li>Règle des signes comme pour les nombres relatifs : (−) × (+) donne (−), (−) × (−) donne (+).</li>
+        <li>Toujours vérifier si le résultat peut se simplifier (forme irréductible).</li>
+      </ul>
+    </section>
+  </div>
+</div>
+</body></html>
