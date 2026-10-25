@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz du présent · piste noire</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Patrick+Hand&display=swap">
+<style>
+/* Une question à la fois sur papier à carreaux, barre de progression en haut, explication après chaque réponse */
+:root {
+  --paper: #f7f9fc; --grid: #dfe7f2; --ink: #1d2433; --muted: #5a6478; --card: #ffffff; --line: #c9d3e3;
+  --accent: #1d2433; --accent-bg: #e4e7ee;
+  --ok: #138a5c; --ok-bg: #e2f5ec; --bad: #c42b3c; --bad-bg: #fce6e9;
+  --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-hand: "Patrick Hand", "Comic Sans MS", cursive;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #e8edf5; --accent-bg: #252d3b; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #e8edf5; --accent-bg: #252d3b; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark }
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background-color: var(--paper); color: var(--ink);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px; font-family: var(--f-body); font-size: 17px; line-height: 1.5;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: 32px; margin: 0; }
+.count { font-family: var(--f-hand); font-size: 20px; color: var(--muted); }
+.bar { height: 8px; background: var(--line); border-radius: 99px; margin: 12px 0 20px; overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.card { background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.theme { font-family: var(--f-hand); font-size: 19px; color: var(--accent); }
+.q { font-size: 20px; font-weight: 700; line-height: 1.35; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.f { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.f > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 1px; }
+.f > span:last-child { padding: 1px 3px 0; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { font: inherit; font-size: 20px; color: var(--ink); background: var(--paper); border: 2px solid var(--line); border-radius: 14px;
+  min-height: 72px; padding: 8px 10px; cursor: pointer; text-align: center; line-height: 1.2; display: flex; align-items: center; justify-content: center; gap: 2px; }
+@media (hover: hover) { .opt:hover:not(:disabled) { border-color: var(--accent); } }
+.opt, .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.opt:active:not(:disabled) { transform: scale(.97); }
+.opt:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.opt.good { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.opt.wrong { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.opt:disabled { cursor: default; }
+.fb { border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.fb.good { background: var(--ok-bg); } .fb.wrong { background: var(--bad-bg); }
+.fb strong { font-family: var(--f-display); font-size: 20px; }
+.fb.good strong { color: var(--ok); } .fb.wrong strong { color: var(--bad); }
+.fb .why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.btn { min-height: 52px; font: inherit; font-weight: 700; font-size: 18px; background: var(--accent); color: var(--card); border: 0; border-radius: 12px; padding: 12px 20px; cursor: pointer; align-self: flex-end; }
+.end { text-align: center; align-items: center; }
+.score { font-family: var(--f-display); font-weight: 800; font-size: 64px; line-height: 1; color: var(--accent); }
+.msg { font-family: var(--f-hand); font-size: 22px; }
+.recap { list-style: none; margin: 0; padding: 0; width: 100%; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+.recap li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 10px; border-radius: 10px; background: var(--paper); }
+.recap .m { font-weight: 700; width: 22px; }
+.recap .ok { color: var(--ok); } .recap .ko { color: var(--bad); }
+@media (max-width: 520px) {
+  body { font-size: 16px; }
+  .wrap { padding-block: 14px 28px; }
+  h1 { font-size: 26px; }
+  .card { padding: 16px; gap: 14px; border-radius: 16px; }
+  .q { font-size: 20px; justify-content: center; text-align: center; }
+  .opt { font-size: 19px; min-height: 80px; }
+  .btn { align-self: stretch; }
+}
+@media (max-width: 340px) { .opts { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .bar > div { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Le présent · piste noire</h1><span class="count" id="count"></span></header>
+  <div class="bar"><div id="bar"></div></div>
+  <main id="app"></main>
+</div>
+<script>
+// Écriture : {3/4} devient une fraction, "-{3/4}" une fraction négative.
+const Q = [
+  { t: "1er groupe · verbes en -cer", q: "Nous (commencer) la montée.<br>Nous ___ la montée.", a: "commençons", w: ["commencons", "commenceons", "commençont"],
+    e: "Devant -ons, le c prend une cédille pour garder le son [s] : nous commençons, nous lançons." },
+  { t: "1er groupe · -eter", q: "Il (jeter) sa gourde vide à la poubelle.<br>Il ___ sa gourde.", a: "jette", w: ["jète", "jete", "jettes"],
+    e: "Jeter double le t devant un e muet : je jette, il jette, ils jettent, mais nous jetons." },
+  { t: "1er groupe · le piège d'acheter", q: "J'(acheter) une chambre à air.<br>J'___ une chambre à air.", a: "achète", w: ["achette", "achete", "achètes"],
+    e: "Acheter ne double pas le t : il prend un accent grave. Comme lui : geler, peler, haleter (je gèle, il pèle)." },
+  { t: "1er groupe · -oyer", q: "Tu (envoyer) la vidéo de ta descente.<br>Tu ___ la vidéo.", a: "envoies", w: ["envoyes", "envois", "envoie"],
+    e: "Les verbes en -oyer changent y en i devant un e muet : j'envoie, tu envoies, mais nous envoyons. Et tu prend toujours un s." },
+  { t: "3e groupe · -soudre", q: "Il (résoudre) le problème de dérailleur.<br>Il ___ le problème.", a: "résout", w: ["résoud", "résous", "résoude"],
+    e: "Les verbes en -soudre perdent le d : je résous, tu résous, il résout." },
+  { t: "3e groupe · irrégulier", q: "Vous (dire) la vérité.<br>Vous ___ la vérité.", a: "dites", w: ["disez", "dîtes", "dittes"],
+    e: "Vous dites, sans accent : dîtes avec un accent circonflexe, c'est le passé simple. Attention, ses composés font -isez : vous interdisez, vous prédisez." },
+  { t: "Verbe à diphtongue · acquérir", q: "Ils (acquérir) de l'expérience.<br>Ils ___ de l'expérience.", a: "acquièrent", w: ["acquérent", "acquierent", "acquérissent"],
+    e: "Acquérir : j'acquiers, tu acquiers, il acquiert, nous acquérons, vous acquérez, ils acquièrent." },
+  { t: "Verbe à diphtongue · mourir", q: "Nous (mourir) de chaud dans la montée.<br>Nous ___ de chaud.", a: "mourons", w: ["meurons", "mourrons", "mourions"],
+    e: "Au présent, avec nous on garde le radical de l'infinitif : nous mourons. Mourrons (deux r), c'est le futur. Mais je meurs, ils meurent." },
+  { t: "Verbe à diphtongue · recevoir", q: "Elles (recevoir) leurs médailles.<br>Elles ___ leurs médailles.", a: "reçoivent", w: ["recevent", "recoivent", "reçevent"],
+    e: "Forme longue au pluriel : elles reçoivent. La cédille est obligatoire devant o pour garder le son [s]." },
+  { t: "Verbe à diphtongue · tenir", q: "Ils (tenir) fermement le guidon.<br>Ils ___ le guidon.", a: "tiennent", w: ["tienent", "tenent", "tiènent"],
+    e: "Tenir et venir doublent le n avec ils : ils tiennent, ils viennent. Mais nous tenons." },
+  { t: "Verbes à diphtongue · l'intrus", q: "Lequel de ces verbes NE change PAS de radical au présent ?", a: "courir", w: ["tenir", "mourir", "pouvoir"],
+    e: "Courir garde le même radical : je cours, nous courons, ils courent. Les autres changent : je tiens / nous tenons, je meurs / nous mourons, je peux / nous pouvons." },
+  { t: "Accord · sujet multiple", q: "Mes amis et moi (partir) tôt demain.<br>Mes amis et moi ___ tôt.", a: "partons", w: ["partent", "part", "partez"],
+    e: "Mes amis et moi = nous. Le verbe se conjugue donc avec nous : nous partons." },
+  { t: "Accord · après qui", q: "C'est toi qui (choisir) le parcours.<br>C'est toi qui ___ le parcours.", a: "choisis", w: ["choisit", "choisissent", "choisi"],
+    e: "Après qui, le verbe s'accorde avec le mot que qui remplace, ici toi = tu : c'est toi qui choisis." },
+  { t: "Verbe pronominal · s'asseoir", q: "Je (s'asseoir) sur le rocher.<br>Je ___ sur le rocher.", a: "m'assieds", w: ["m'asseois", "me assieds", "m'assied"],
+    e: "Je m'assieds (on peut aussi dire je m'assois). Me devient m' devant une voyelle, et je prend un s : il s'assied, mais je m'assieds." },
+  { t: "Verbe pronominal · s'ennuyer", q: "Vous (s'ennuyer) pendant la pause ?<br>Vous ___ ?", a: "vous ennuyez", w: ["vous ennuiez", "s'ennuyez", "vous ennuyer"],
+    e: "Le pronom est vous, comme le sujet : vous vous ennuyez. Ennuiez avec un i, c'est l'imparfait." },
+  { t: "Verbe pronominal · négation", q: "Tu (s'arrêter) au sommet, à la forme négative.<br>Tu ___ au sommet.", a: "ne t'arrêtes pas", w: ["ne te arrêtes pas", "t'arrêtes ne pas", "ne t'arrête pas"],
+    e: "Ne se place avant le pronom, et te devient t' devant une voyelle. Tu prend un s : tu ne t'arrêtes pas." },
+  { t: "Verbe pronominal · le sens", q: "Dans quelle phrase le verbe est-il toujours pronominal (il n'existe pas sans se) ?", a: "Il s'enfuit dans la forêt.", w: ["Il se lave les mains.", "Ils se saluent.", "Il se regarde dans le miroir."],
+    e: "On ne peut pas dire « il enfuit » : s'enfuir est toujours pronominal, comme se souvenir ou s'évanouir. On peut dire « il lave », « il salue » et « il regarde »." },
+  { t: "Valeur du présent", q: "« Demain, je pars à 8 heures. »<br>Ici, le présent exprime :", a: "un futur proche", w: ["une habitude", "une vérité générale", "une action en cours"],
+    e: "Le mot demain montre que l'action n'a pas encore eu lieu : c'est un présent à valeur de futur proche." },
+];
+
+const fr = s => s.replace(/(-?)\{([^/{}]+)\/([^{}]+)\}/g,
+  (_, m, n, d) => (m ? "−" : "") + `<span class="f"><span>${n}</span><span>${d}</span></span>`);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const app = document.getElementById("app"), bar = document.getElementById("bar"), count = document.getElementById("count");
+let i = 0, score = 0, results = [];
+
+function show() {
+  window.scrollTo(0, 0);
+  const item = Q[i];
+  count.textContent = `Question ${i + 1} / ${Q.length}`;
+  bar.style.width = (i / Q.length * 100) + "%";
+  const opts = shuffle([item.a, ...item.w]);
+  app.innerHTML = `<div class="card">
+    <span class="theme">${item.t}</span>
+    <div class="q">${fr(item.q)}</div>
+    <div class="opts">${opts.map((o, k) => `<button class="opt" id="opt${k}" data-v="${o}">${fr(o)}</button>`).join("")}</div>
+    <div id="fb"></div></div>`;
+  app.querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => answer(b, item)));
+}
+
+function answer(btn, item) {
+  const ok = btn.dataset.v === item.a;
+  if (ok) score++;
+  results.push(ok);
+  app.querySelectorAll(".opt").forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === item.a) b.classList.add("good");
+  });
+  if (!ok) btn.classList.add("wrong");
+  const last = i === Q.length - 1;
+  document.getElementById("fb").outerHTML = `<div class="fb ${ok ? "good" : "wrong"}">
+      <strong>${ok ? "Bravo !" : "Pas tout à fait…"}</strong>
+      <div class="why">${fr(item.e)}</div></div>
+    <button class="btn" id="next">${last ? "Voir mon score" : "Question suivante →"}</button>`;
+  const nx = document.getElementById("next");
+  nx.focus({ preventScroll: true });
+  nx.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  nx.addEventListener("click", () => { i++; last ? end() : show(); });
+}
+
+function end() {
+  try { parent.postMessage({ type: "quiz-score", score, total: Q.length }, "*"); } catch (e) {}
+  bar.style.width = "100%";
+  count.textContent = "Terminé";
+  const r = score / Q.length;
+  const msg = r === 1 ? "Piste noire validée, sans une chute !" :
+              r >= .75 ? "Très fort sur une piste noire ! Revois les pièges que tu as ratés." :
+              r >= .5 ? "Pas mal ! Relis la carte mentale et recommence." :
+                        "Piste difficile : relis la carte mentale (diphtongues et pronominaux surtout), puis retente.";
+  app.innerHTML = `<div class="card end">
+    <div class="score">${score}/${Q.length}</div>
+    <div class="msg">${msg}</div>
+    <ul class="recap">${Q.map((q, k) => `<li><span class="m ${results[k] ? "ok" : "ko"}">${results[k] ? "✓" : "✗"}</span>${q.t} : ${fr(q.q)}</li>`).join("")}</ul>
+    <button class="btn" id="again" style="align-self:center">Recommencer</button></div>`;
+  document.getElementById("again").addEventListener("click", () => { i = 0; score = 0; results = []; show(); });
+}
+
+show();
+</script>
+</body>
+</html>

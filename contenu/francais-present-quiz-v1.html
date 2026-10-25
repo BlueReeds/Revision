@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz du présent de l'indicatif</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Patrick+Hand&display=swap">
+<style>
+/* Une question à la fois sur papier à carreaux, barre de progression en haut, explication après chaque réponse */
+:root {
+  --paper: #f7f9fc; --grid: #dfe7f2; --ink: #1d2433; --muted: #5a6478; --card: #ffffff; --line: #c9d3e3;
+  --accent: #7a3fc4; --accent-bg: #f0e8fb;
+  --ok: #138a5c; --ok-bg: #e2f5ec; --bad: #c42b3c; --bad-bg: #fce6e9;
+  --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-hand: "Patrick Hand", "Comic Sans MS", cursive;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #b98cff; --accent-bg: #2a2140; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #b98cff; --accent-bg: #2a2140; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark }
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background-color: var(--paper); color: var(--ink);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px; font-family: var(--f-body); font-size: 17px; line-height: 1.5;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: 32px; margin: 0; }
+.count { font-family: var(--f-hand); font-size: 20px; color: var(--muted); }
+.bar { height: 8px; background: var(--line); border-radius: 99px; margin: 12px 0 20px; overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.card { background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.theme { font-family: var(--f-hand); font-size: 19px; color: var(--accent); }
+.q { font-size: 20px; font-weight: 700; line-height: 1.35; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.f { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.f > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 1px; }
+.f > span:last-child { padding: 1px 3px 0; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { font: inherit; font-size: 20px; color: var(--ink); background: var(--paper); border: 2px solid var(--line); border-radius: 14px;
+  min-height: 72px; padding: 8px 10px; cursor: pointer; text-align: center; line-height: 1.2; display: flex; align-items: center; justify-content: center; gap: 2px; }
+@media (hover: hover) { .opt:hover:not(:disabled) { border-color: var(--accent); } }
+.opt, .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.opt:active:not(:disabled) { transform: scale(.97); }
+.opt:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.opt.good { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.opt.wrong { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.opt:disabled { cursor: default; }
+.fb { border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.fb.good { background: var(--ok-bg); } .fb.wrong { background: var(--bad-bg); }
+.fb strong { font-family: var(--f-display); font-size: 20px; }
+.fb.good strong { color: var(--ok); } .fb.wrong strong { color: var(--bad); }
+.fb .why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.btn { min-height: 52px; font: inherit; font-weight: 700; font-size: 18px; background: var(--accent); color: var(--card); border: 0; border-radius: 12px; padding: 12px 20px; cursor: pointer; align-self: flex-end; }
+.end { text-align: center; align-items: center; }
+.score { font-family: var(--f-display); font-weight: 800; font-size: 64px; line-height: 1; color: var(--accent); }
+.msg { font-family: var(--f-hand); font-size: 22px; }
+.recap { list-style: none; margin: 0; padding: 0; width: 100%; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+.recap li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 10px; border-radius: 10px; background: var(--paper); }
+.recap .m { font-weight: 700; width: 22px; }
+.recap .ok { color: var(--ok); } .recap .ko { color: var(--bad); }
+@media (max-width: 520px) {
+  body { font-size: 16px; }
+  .wrap { padding-block: 14px 28px; }
+  h1 { font-size: 26px; }
+  .card { padding: 16px; gap: 14px; border-radius: 16px; }
+  .q { font-size: 20px; justify-content: center; text-align: center; }
+  .opt { font-size: 19px; min-height: 80px; }
+  .btn { align-self: stretch; }
+}
+@media (max-width: 340px) { .opts { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .bar > div { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Le présent</h1><span class="count" id="count"></span></header>
+  <div class="bar"><div id="bar"></div></div>
+  <main id="app"></main>
+</div>
+<script>
+// Écriture : {3/4} devient une fraction, "-{3/4}" une fraction négative.
+const Q = [
+  { t: "1er groupe · verbes en -ger", q: "Nous (manger) au refuge.<br>Nous ___ au refuge.", a: "mangeons", w: ["mangons", "mangeont", "mangions"],
+    e: "Les verbes en -ger gardent le e devant -ons pour que le g reste doux, comme dans « je » : nous mangeons, nous nageons." },
+  { t: "1er groupe · verbes en -eler", q: "Tu (appeler) ton coéquipier.<br>Tu ___ ton coéquipier.", a: "appelles", w: ["appeles", "appèles", "appelle"],
+    e: "Appeler double le l devant un e muet : j'appelle, tu appelles, il appelle, mais nous appelons." },
+  { t: "1er groupe · e + consonne + er", q: "Je (lever) la roue avant.<br>Je ___ la roue avant.", a: "lève", w: ["leve", "lèves", "lêve"],
+    e: "Lever prend un accent grave quand la terminaison est muette : je lève, tu lèves, ils lèvent, mais nous levons." },
+  { t: "2e groupe", q: "Ils (finir) la descente.<br>Ils ___ la descente.", a: "finissent", w: ["finent", "finisent", "finissents"],
+    e: "Au 2e groupe, le pluriel prend -iss- : nous finissons, vous finissez, ils finissent." },
+  { t: "3e groupe · verbes en -dre", q: "Il (prendre) le télésiège.<br>Il ___ le télésiège.", a: "prend", w: ["prent", "prends", "prand"],
+    e: "Les verbes en -dre gardent le d : je prends, tu prends, il prend." },
+  { t: "3e groupe · verbes en -indre", q: "Elle (peindre) son cadre de vélo.<br>Elle ___ son cadre.", a: "peint", w: ["peind", "peins", "peindt"],
+    e: "Les verbes en -indre et -soudre perdent le d : je peins, tu peins, il peint." },
+  { t: "3e groupe · verbes irréguliers", q: "Vous (faire) une pause.<br>Vous ___ une pause.", a: "faites", w: ["faisez", "fesez", "faitez"],
+    e: "Faire et dire sont irréguliers avec vous : vous faites, vous dites." },
+  { t: "Verbe à diphtongue · venir", q: "Je (venir) demain.<br>Je ___ demain.", a: "viens", w: ["vens", "vient", "venis"],
+    e: "Venir change de radical : je viens, tu viens, il vient, ils viennent, mais nous venons, vous venez." },
+  { t: "Verbe à diphtongue · pouvoir", q: "Nous (pouvoir) partir.<br>Nous ___ partir.", a: "pouvons", w: ["peuvons", "pouvont", "peuvont"],
+    e: "Avec nous et vous, on garde le radical de l'infinitif : nous pouvons, vous pouvez. Mais je peux, ils peuvent." },
+  { t: "Verbe à diphtongue · devoir", q: "Ils (devoir) réparer le pneu.<br>Ils ___ réparer le pneu.", a: "doivent", w: ["devent", "doient", "dèvent"],
+    e: "Devoir : je dois, tu dois, il doit, nous devons, vous devez, ils doivent." },
+  { t: "Verbe à diphtongue · boire", q: "Elles (boire) de l'eau à la pause.<br>Elles ___ de l'eau.", a: "boivent", w: ["buvent", "boient", "boivons"],
+    e: "Boire : je bois, nous buvons, ils boivent. Le pluriel ils/elles reprend la forme longue." },
+  { t: "Verbe à diphtongue · recevoir", q: "Je (recevoir) un nouveau casque.<br>Je ___ un nouveau casque.", a: "reçois", w: ["recois", "reçoit", "recevois"],
+    e: "Recevoir : je reçois, tu reçois, il reçoit. La cédille garde le son [s] devant o." },
+  { t: "Verbes à diphtongue · la règle", q: "Pour vouloir (je veux, ils veulent, nous voulons), avec quels pronoms le radical change-t-il ?", a: "je, tu, il, ils", w: ["nous et vous", "seulement je", "aucun"],
+    e: "Le radical change avec je, tu, il et ils. Nous et vous gardent le radical de l'infinitif : nous voulons, vous voulez." },
+  { t: "Verbe pronominal", q: "Tu (se lever) tôt pour la sortie.<br>Tu ___ tôt.", a: "te lèves", w: ["se lèves", "te leves", "tu lèves"],
+    e: "Le pronom change avec la personne : je me lève, tu te lèves, il se lève, nous nous levons, vous vous levez, ils se lèvent." },
+  { t: "Verbe pronominal", q: "Nous (s'habiller) vite.<br>Nous ___ vite.", a: "nous habillons", w: ["s'habillons", "se habillons", "nous habillez"],
+    e: "Avec nous, le pronom est aussi nous : nous nous habillons." },
+  { t: "Verbe pronominal · négation", q: "Je (se souvenir) du parcours, à la forme négative.<br>Je ___ du parcours.", a: "ne me souviens pas", w: ["me ne souviens pas", "ne souviens me pas", "ne me souvient pas"],
+    e: "Ne se place avant le pronom, pas après le verbe : je ne me souviens pas." },
+  { t: "Verbe pronominal · le sens", q: "« Mes deux copains se parlent tous les soirs. » Ce verbe pronominal a un sens :", a: "réciproque", w: ["réfléchi", "passif", "toujours pronominal"],
+    e: "Réciproque : chacun fait l'action sur l'autre (ils se parlent l'un à l'autre). Réfléchi : on fait l'action sur soi-même (il se lave)." },
+];
+
+const fr = s => s.replace(/(-?)\{([^/{}]+)\/([^{}]+)\}/g,
+  (_, m, n, d) => (m ? "−" : "") + `<span class="f"><span>${n}</span><span>${d}</span></span>`);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const app = document.getElementById("app"), bar = document.getElementById("bar"), count = document.getElementById("count");
+let i = 0, score = 0, results = [];
+
+function show() {
+  window.scrollTo(0, 0);
+  const item = Q[i];
+  count.textContent = `Question ${i + 1} / ${Q.length}`;
+  bar.style.width = (i / Q.length * 100) + "%";
+  const opts = shuffle([item.a, ...item.w]);
+  app.innerHTML = `<div class="card">
+    <span class="theme">${item.t}</span>
+    <div class="q">${fr(item.q)}</div>
+    <div class="opts">${opts.map((o, k) => `<button class="opt" id="opt${k}" data-v="${o}">${fr(o)}</button>`).join("")}</div>
+    <div id="fb"></div></div>`;
+  app.querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => answer(b, item)));
+}
+
+function answer(btn, item) {
+  const ok = btn.dataset.v === item.a;
+  if (ok) score++;
+  results.push(ok);
+  app.querySelectorAll(".opt").forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === item.a) b.classList.add("good");
+  });
+  if (!ok) btn.classList.add("wrong");
+  const last = i === Q.length - 1;
+  document.getElementById("fb").outerHTML = `<div class="fb ${ok ? "good" : "wrong"}">
+      <strong>${ok ? "Bravo !" : "Pas tout à fait…"}</strong>
+      <div class="why">${fr(item.e)}</div></div>
+    <button class="btn" id="next">${last ? "Voir mon score" : "Question suivante →"}</button>`;
+  const nx = document.getElementById("next");
+  nx.focus({ preventScroll: true });
+  nx.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  nx.addEventListener("click", () => { i++; last ? end() : show(); });
+}
+
+function end() {
+  try { parent.postMessage({ type: "quiz-score", score, total: Q.length }, "*"); } catch (e) {}
+  bar.style.width = "100%";
+  count.textContent = "Terminé";
+  const r = score / Q.length;
+  const msg = r === 1 ? "Parfait, tu maîtrises le présent !" :
+              r >= .75 ? "Très bien ! Encore un petit effort." :
+              r >= .5 ? "Pas mal ! Relis la carte mentale et recommence." :
+                        "Relis la carte mentale, surtout les verbes à diphtongue, puis réessaie.";
+  app.innerHTML = `<div class="card end">
+    <div class="score">${score}/${Q.length}</div>
+    <div class="msg">${msg}</div>
+    <ul class="recap">${Q.map((q, k) => `<li><span class="m ${results[k] ? "ok" : "ko"}">${results[k] ? "✓" : "✗"}</span>${q.t} : ${fr(q.q)}</li>`).join("")}</ul>
+    <button class="btn" id="again" style="align-self:center">Recommencer</button></div>`;
+  document.getElementById("again").addEventListener("click", () => { i = 0; score = 0; results = []; show(); });
+}
+
+show();
+</script>
+</body>
+</html>

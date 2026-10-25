@@ -3,9 +3,9 @@
 
 window.RR_CONFIG = {
   // Adresse de ta base Firebase Realtime Database (voir le README, étape 1).
-  // Exemple : "https://revision-4f149-default-rtdb.europe-west1.firebasedatabase.app"
+  // Exemple : "https://ride-revise-default-rtdb.europe-west1.firebasedatabase.app"
   firebaseUrl: "",
 
   // Code à taper pour ouvrir l'espace parents. Change-le !
-  codeParents: "0805"
+  codeParents: "1234"
 };

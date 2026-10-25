@@ -1,0 +1,59 @@
+[
+  {
+    "id": "fractions",
+    "matiere": "Maths",
+    "couleur": "#ff7a2f",
+    "lecon": "Les fractions",
+    "quiz": [
+      "fractions-quiz-v1.html",
+      "fractions-quiz-v2.html"
+    ],
+    "cartes": [
+      {
+        "fichier": "fractions-carte-mentale.html",
+        "titre": "Carte mentale des fractions"
+      }
+    ]
+  },
+  {
+    "id": "present",
+    "matiere": "Français",
+    "couleur": "#3d8bff",
+    "lecon": "Le présent de l'indicatif",
+    "quiz": [
+      "francais-present-quiz-v1.html"
+    ],
+    "cartes": [
+      {
+        "fichier": "francais-present-carte-mentale.html",
+        "titre": "Carte mentale du présent"
+      }
+    ]
+  },
+  {
+    "id": "fractions-difficile",
+    "matiere": "Maths",
+    "couleur": "#ff7a2f",
+    "lecon": "Les fractions",
+    "quiz": [
+      "fractions-quiz-v3-difficile.html"
+    ],
+    "titres": [
+      "Piste noire (difficile)"
+    ],
+    "cartes": []
+  },
+  {
+    "id": "present-difficile",
+    "matiere": "Français",
+    "couleur": "#3d8bff",
+    "lecon": "Le présent de l'indicatif",
+    "quiz": [
+      "francais-present-quiz-v2-difficile.html"
+    ],
+    "titres": [
+      "Piste noire (difficile)"
+    ],
+    "cartes": []
+  }
+]

@@ -1,0 +1,230 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Carte mentale du présent</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Patrick+Hand&display=swap"><style>
+/* Layout : carte mentale sur papier à carreaux — un nœud central, quatre branches autour, les pièges en bas */
+:root {
+  --paper: #f7f9fc;
+  --grid: #dfe7f2;
+  --ink: #1d2433;
+  --muted: #5a6478;
+  --card: #ffffff;
+  --line: #c9d3e3;
+  --c-add: #1f6fd1;   --c-add-bg: #e6f0fc;
+  --c-mul: #138a5c;   --c-mul-bg: #e2f5ec;
+  --c-div: #c4560f;   --c-div-bg: #fcece0;
+  --c-base: #7a3fc4;  --c-base-bg: #f0e8fb;
+  --c-warn: #c42b3c;  --c-warn-bg: #fce6e9;
+  --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-hand: "Patrick Hand", "Comic Sans MS", cursive;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --c-add: #6aa8ff; --c-add-bg: #1a2a42; --c-mul: #4fd19c; --c-mul-bg: #16302a;
+  --c-div: #ff9a5a; --c-div-bg: #36231a; --c-base: #b98cff; --c-base-bg: #2a2140;
+  --c-warn: #ff7686; --c-warn-bg: #3a1c22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --c-add: #6aa8ff; --c-add-bg: #1a2a42; --c-mul: #4fd19c; --c-mul-bg: #16302a;
+  --c-div: #ff9a5a; --c-div-bg: #36231a; --c-base: #b98cff; --c-base-bg: #2a2140;
+  --c-warn: #ff7686; --c-warn-bg: #3a1c22; color-scheme: dark }
+
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; margin-bottom: 20px; }
+.top .lvl { font-family: var(--f-hand); font-size: 20px; color: var(--muted); }
+.top .lvl b { color: var(--c-base); font-weight: 400; }
+
+/* Fraction écrite verticalement */
+.f { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.f > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 1px; }
+.f > span:last-child { padding: 1px 3px 0; }
+.calc { font-size: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.calc .op { font-weight: 700; padding: 0 2px; }
+
+.map { display: grid; gap: 18px; grid-template-columns: 1fr; }
+.center {
+  background: var(--ink); color: var(--paper);
+  border-radius: 999px; padding: 22px 28px; text-align: center;
+  align-self: center; justify-self: center; max-width: 360px; width: 100%;
+}
+.center h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(30px, 6vw, 42px); margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.center p { margin: 4px 0 0; font-family: var(--f-hand); font-size: 20px; opacity: .85; }
+.center .big { display: inline-flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 22px; }
+
+.branch {
+  background: var(--card); border: 2px solid var(--c); border-radius: 18px;
+  padding: 16px 18px 18px; position: relative; min-width: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.branch h2 {
+  margin: 0; font-family: var(--f-display); font-weight: 800; font-size: 22px; color: var(--c);
+  display: flex; align-items: center; gap: 10px;
+}
+.branch h2 .sym { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: var(--card); font-size: 22px; flex: none; }
+.rule { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-weight: 700; }
+.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.ex { border-top: 1.5px dashed var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ex .lab { font-family: var(--f-hand); font-size: 19px; color: var(--c); }
+.tip { font-family: var(--f-hand); font-size: 19px; color: var(--muted); line-height: 1.3; }
+.add  { --c: var(--c-add);  --bg: var(--c-add-bg); }
+.mul  { --c: var(--c-mul);  --bg: var(--c-mul-bg); }
+.div  { --c: var(--c-div);  --bg: var(--c-div-bg); }
+.base { --c: var(--c-base); --bg: var(--c-base-bg); }
+.warn { --c: var(--c-warn); --bg: var(--c-warn-bg); }
+.warn ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.no { text-decoration: line-through; text-decoration-color: var(--c-warn); text-decoration-thickness: 2px; }
+
+@media (min-width: 900px) {
+  .map {
+    grid-template-columns: 1fr minmax(260px, 320px) 1fr;
+    grid-template-areas: "base center add" "mul center div" "warn warn warn";
+    column-gap: 48px; row-gap: 24px;
+  }
+  .base { grid-area: base; } .add { grid-area: add; } .mul { grid-area: mul; } .div { grid-area: div; }
+  .warn { grid-area: warn; } .center { grid-area: center; }
+  .base::after, .mul::after, .add::after, .div::after {
+    content: ""; position: absolute; top: 50%; width: 48px; height: 0; border-top: 3px dotted var(--c);
+  }
+  .base::after, .mul::after { right: -51px; }
+  .add::after, .div::after { left: -51px; }
+}
+
+.conj { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+.conj td { padding: 3px 6px; border-bottom: 1px dashed var(--line); }
+.conj tr:last-child td { border-bottom: 0; }
+.conj td:first-child { color: var(--muted); width: 32%; }
+.end-t { font-weight: 700; color: var(--c); }
+.long { background: var(--c-div-bg); color: var(--c-div); font-weight: 700; border-radius: 3px; padding: 0 1px; }
+.short { background: var(--c-mul-bg); color: var(--c-mul); font-weight: 700; border-radius: 3px; padding: 0 1px; }
+.pr { color: var(--c-div); font-weight: 700; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { background: var(--bg); border-radius: 8px; padding: 6px 9px; font-size: 14px; line-height: 1.3; flex: 1 1 140px; }
+.tag b { color: var(--c); display: block; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.two > div { min-width: 0; }
+.mini { font-size: 13px; color: var(--muted); margin: 0 0 2px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 14px; }
+@media (max-width: 440px) { .two { grid-template-columns: 1fr; } }
+@media (min-width: 900px) {
+  .map { grid-template-areas: "base center add" "mul center div" "warn warn warn"; }
+}
+.center{box-sizing:border-box}</style></head><body><div class="wrap">
+  <div class="top"><span class="lvl">Français · <b>4<sup>e</sup></b> · Conjugaison</span></div>
+  <div class="map">
+    <div class="center">
+      <h1>Le présent de l'indicatif</h1>
+      <p>Ce qui se passe maintenant, une habitude, une vérité générale</p>
+      <p style="font-size:17px;margin-top:8px">« Je roule. » · « Il roule tous les jours. » · « L'eau bout à 100 °C. »</p>
+    </div>
+
+    <section class="branch base">
+      <h2><span class="sym">1</span><span>1<sup>er</sup> et 2<sup>e</sup> groupes</span></h2>
+      <div class="two">
+        <div><p class="mini">1er groupe : -er</p><table class="conj">
+          <tr><td>je</td><td>roul<span class="end-t">e</span></td></tr><tr><td>tu</td><td>roul<span class="end-t">es</span></td></tr><tr><td>il</td><td>roul<span class="end-t">e</span></td></tr>
+          <tr><td>nous</td><td>roul<span class="end-t">ons</span></td></tr><tr><td>vous</td><td>roul<span class="end-t">ez</span></td></tr><tr><td>ils</td><td>roul<span class="end-t">ent</span></td></tr></table></div>
+        <div><p class="mini">2e groupe : -ir (-issons)</p><table class="conj">
+          <tr><td>je</td><td>fin<span class="end-t">is</span></td></tr><tr><td>tu</td><td>fin<span class="end-t">is</span></td></tr><tr><td>il</td><td>fin<span class="end-t">it</span></td></tr>
+          <tr><td>nous</td><td>fin<span class="end-t">issons</span></td></tr><tr><td>vous</td><td>fin<span class="end-t">issez</span></td></tr><tr><td>ils</td><td>fin<span class="end-t">issent</span></td></tr></table></div>
+      </div>
+      <div class="ex"><span class="lab">Particularités du 1er groupe</span>
+        <div class="tags">
+          <div class="tag"><b>-cer / -ger</b>nous lançons, nous mangeons</div>
+          <div class="tag"><b>-eler / -eter</b>j'appelle, je jette<br>mais j'achète, je gèle</div>
+          <div class="tag"><b>e ou é + consonne + er</b>je lève, je cède<br>mais nous levons</div>
+          <div class="tag"><b>-oyer / -uyer</b>j'envoie, j'essuie<br>mais nous envoyons</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="branch add">
+      <h2><span class="sym">↕</span><span>Verbes à diphtongue</span></h2>
+      <div class="rule">Le radical change selon la personne : une forme longue avec je, tu, il, ils, et le radical de l'infinitif avec nous et vous.</div>
+      <div class="two">
+        <div><p class="mini">venir</p><table class="conj">
+          <tr><td>je</td><td><span class="long">vien</span>s</td></tr><tr><td>tu</td><td><span class="long">vien</span>s</td></tr><tr><td>il</td><td><span class="long">vien</span>t</td></tr>
+          <tr><td>nous</td><td><span class="short">ven</span>ons</td></tr><tr><td>vous</td><td><span class="short">ven</span>ez</td></tr><tr><td>ils</td><td><span class="long">vienn</span>ent</td></tr></table></div>
+        <div><p class="mini">boire</p><table class="conj">
+          <tr><td>je</td><td><span class="long">boi</span>s</td></tr><tr><td>tu</td><td><span class="long">boi</span>s</td></tr><tr><td>il</td><td><span class="long">boi</span>t</td></tr>
+          <tr><td>nous</td><td><span class="short">buv</span>ons</td></tr><tr><td>vous</td><td><span class="short">buv</span>ez</td></tr><tr><td>ils</td><td><span class="long">boiv</span>ent</td></tr></table></div>
+      </div>
+      <div class="legend"><span><span class="long">forme longue</span> je, tu, il, ils</span><span><span class="short">radical de l'infinitif</span> nous, vous</span></div>
+      <div class="ex"><span class="lab">Les autres à connaître</span>
+        <div class="tags">
+          <div class="tag"><b>tenir</b>je tiens, nous tenons, ils tiennent</div>
+          <div class="tag"><b>pouvoir / vouloir</b>je peux, je veux · nous pouvons, nous voulons · ils peuvent, ils veulent</div>
+          <div class="tag"><b>devoir / recevoir</b>je dois, je reçois · nous devons, nous recevons · ils doivent, ils reçoivent</div>
+          <div class="tag"><b>mourir / acquérir</b>je meurs, j'acquiers · nous mourons, nous acquérons · ils meurent, ils acquièrent</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="branch mul">
+      <h2><span class="sym">3</span><span>3<sup>e</sup> groupe</span></h2>
+      <div class="rule">Le plus souvent : -s, -s, -t, -ons, -ez, -ent.</div>
+      <div class="tags">
+        <div class="tag"><b>-dre : on garde le d</b>je prends, il prend<br>je réponds, il répond</div>
+        <div class="tag"><b>-indre, -soudre : pas de d</b>je peins, il peint<br>je résous, il résout</div>
+        <div class="tag"><b>-x, -x, -t</b>je peux, je veux, je vaux<br>il peut, il veut</div>
+        <div class="tag"><b>-e, -es, -e</b>ouvrir, offrir, cueillir, souffrir : j'ouvre, tu cueilles</div>
+      </div>
+      <div class="ex"><span class="lab">Les irréguliers à savoir par cœur</span>
+        <div class="tags">
+          <div class="tag"><b>être</b>je suis, nous sommes, vous êtes, ils sont</div>
+          <div class="tag"><b>avoir</b>j'ai, nous avons, ils ont</div>
+          <div class="tag"><b>aller</b>je vais, nous allons, ils vont</div>
+          <div class="tag"><b>faire / dire</b>vous faites, vous dites, ils font</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="branch div">
+      <h2><span class="sym">↺</span><span>Verbes pronominaux</span></h2>
+      <div class="rule">Un pronom réfléchi de la même personne que le sujet se place devant le verbe.</div>
+      <table class="conj">
+        <tr><td>je</td><td><span class="pr">me</span> lève · je <span class="pr">m'</span>habille</td></tr>
+        <tr><td>tu</td><td><span class="pr">te</span> lèves · tu <span class="pr">t'</span>habilles</td></tr>
+        <tr><td>il, elle</td><td><span class="pr">se</span> lève · il <span class="pr">s'</span>habille</td></tr>
+        <tr><td>nous</td><td><span class="pr">nous</span> levons</td></tr>
+        <tr><td>vous</td><td><span class="pr">vous</span> levez</td></tr>
+        <tr><td>ils, elles</td><td><span class="pr">se</span> lèvent</td></tr>
+      </table>
+      <div class="tip">Devant une voyelle ou un h muet : me, te, se deviennent m', t', s'.</div>
+      <div class="ex"><span class="lab">Négation</span>
+        <div style="font-size:17px">Je <b>ne</b> <span class="pr">me</span> lève <b>pas</b>. · Tu <b>ne</b> <span class="pr">t'</span>habilles <b>pas</b>.</div>
+        <span class="lab">Quatre sens possibles</span>
+        <div class="tags">
+          <div class="tag"><b>Réfléchi</b>sur soi-même : il se lave</div>
+          <div class="tag"><b>Réciproque</b>l'un l'autre : ils se parlent</div>
+          <div class="tag"><b>Toujours pronominal</b>se souvenir, s'enfuir, se moquer</div>
+          <div class="tag"><b>Sens passif</b>ce vélo se vend bien</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="branch warn">
+      <h2><span class="sym">!</span><span>Les pièges à éviter</span></h2>
+      <ul>
+        <li>Ne jamais oublier le s avec tu : <span class="no">tu roule</span> → tu roules, tu finis, tu prends.</li>
+        <li>Ils viennent, ils tiennent : deux n au pluriel.</li>
+        <li><span class="no">vous faisez</span>, <span class="no">vous disez</span> → vous faites, vous dites.</li>
+        <li>Il peut et il veut finissent par t, alors que je peux et je veux finissent par x.</li>
+        <li>Pronominal : le pronom suit la personne. <span class="no">nous se levons</span> → nous nous levons.</li>
+      </ul>
+    </section>
+  </div>
+</div></body></html>

@@ -233,6 +233,64 @@ pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10p
 .page-hero .eyebrow { text-shadow: 0 1px 8px rgba(0,0,0,.5); }
 .subj-thumb { height: 70px; border-radius: 10px; background-size: cover; background-position: center; margin-bottom: 8px; }
 .lock { margin-top: 0; }
+
+/* ---------- Planning ---------- */
+.pl-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pl-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-nav b { font-size: 16px; }
+.pl-nav .btn.small { min-width: 40px; }
+.pl-sum { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pl-legend { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+.pl-week { display: none; }
+.pl-day { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 860px) {
+  .pl-week { display: grid; grid-template-columns: 50px repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .pl-day { display: none; }
+}
+.pl-corner { }
+.pl-dh { text-align: center; padding: 6px 2px; border-radius: 10px; display: flex; flex-direction: column; line-height: 1.1; }
+.pl-dh b { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; font-size: 15px; color: var(--muted); }
+.pl-dh span { font-family: var(--f-display); font-weight: 800; font-size: 22px; }
+.pl-dh.today { background: var(--accent); color: var(--accent-ink); }
+.pl-dh.today b { color: var(--accent-ink); }
+.pl-h { font-size: 13px; color: var(--muted); text-align: right; padding: 6px 6px 0 0; }
+.pl-cell { min-height: 58px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 3px; text-align: left; display: flex; align-items: stretch; min-width: 0; color: var(--fg); }
+.pl-cell.today { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.pl-cell .pl-plus { margin: auto; color: var(--muted); opacity: 0; font-size: 20px; transition: opacity .15s; }
+@media (hover: hover) { .pl-cell:hover { border-color: var(--accent); } .pl-cell:hover .pl-plus { opacity: 1; } }
+.pl-block { flex: 1; min-width: 0; border-radius: 7px; padding: 4px 6px; background: color-mix(in srgb, var(--sc) 22%, var(--surface)); border-left: 3px solid var(--sc); display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.pl-block.done { opacity: .72; }
+.pl-block.missed { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--sc) 14%, var(--surface)) 0 8px, color-mix(in srgb, var(--sc) 6%, var(--surface)) 8px 16px); }
+.pl-t { font-weight: 700; font-size: 13px; line-height: 1.2; display: flex; align-items: center; gap: 4px; justify-content: space-between; }
+.pl-d, .pl-n { font-size: 12px; line-height: 1.2; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-n { font-style: italic; }
+.pl-st { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; font-size: 11px; font-weight: 800; flex: none; }
+.pl-st.ok { background: var(--ok); color: var(--bg); }
+.pl-st.miss { background: var(--bad); color: var(--bg); }
+.pl-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.pl-dchip { position: relative; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 6px 0; display: flex; flex-direction: column; align-items: center; line-height: 1.1; color: var(--fg); }
+.pl-dchip b { font-family: var(--f-display); font-size: 13px; text-transform: uppercase; color: var(--muted); }
+.pl-dchip span { font-family: var(--f-display); font-weight: 800; font-size: 20px; }
+.pl-dchip.today { border-color: var(--accent); }
+.pl-dchip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pl-dchip.on b { color: var(--accent-ink); }
+.pl-dchip i { position: absolute; top: -5px; right: -3px; background: var(--sky); color: var(--bg); font-style: normal; font-size: 11px; font-weight: 800; min-width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; }
+.pl-list { display: flex; flex-direction: column; gap: 6px; }
+.pl-row { display: grid; grid-template-columns: 44px 1fr; gap: 8px; align-items: stretch; }
+.pl-row .pl-cell { min-height: 52px; }
+.pl-row .pl-cell .pl-plus { opacity: .5; }
+.pl-row .pl-t { font-size: 15px; }
+.pl-row .pl-d, .pl-row .pl-n { font-size: 13px; }
+.pl-sheet { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+.pl-panel { width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); max-height: 92vh; overflow-y: auto; }
+@media (min-width: 640px) { .pl-sheet { align-items: center; } .pl-panel { border-radius: 18px; padding-bottom: 18px; } }
+.pl-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl-check { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.pl-check input { width: 22px; height: 22px; accent-color: var(--ok); }
+.pl-hour { font-family: var(--f-display); font-weight: 800; font-size: 20px; color: var(--accent); min-width: 44px; }
+@media (max-width: 640px) { .tabs { gap: 2px; } .tab { flex: 1 1 auto; font-size: 13px; padding: 7px 5px; letter-spacing: 0; } }
+@media (max-width: 360px) { .tab { font-size: 12px; padding: 7px 3px; } }
+@media (max-width: 640px) { .pl-btns .btn { flex: 1 1 calc(50% - 4px); } }
 </style>
 </head>
 <body><header class="topbar gut">
@@ -244,6 +302,7 @@ pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10p
     <nav class="tabs" id="tabs">
       <button class="tab" data-view="home" aria-current="page">Accueil</button>
       <button class="tab" data-view="subjects">Matières</button>
+      <button class="tab" data-view="plan">Planning</button>
       <button class="tab" data-view="dash"><span class="lg">Tableau de bord</span><span class="sm">Notes</span></button>
       <button class="tab" data-view="parents" id="tab-parents" hidden>Parents</button>
     </nav>

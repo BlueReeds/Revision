@@ -102,7 +102,8 @@ const asList = o => Object.entries(o || {}).map(([id, v]) => ({ id, ...v }));
 
 async function loadAll() {
   try {
-    const [cat, res, set] = await Promise.all([api("catalog"), api("results"), api("settings")]);
+    const [cat, res, set, pl] = await Promise.all([api("catalog"), api("results"), api("settings"), api("planning")]);
+    S.plan = asList(pl).filter(p => p && p.date);
     S.subjects = asList(cat?.subjects).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     S.lessons = asList(cat?.lessons);
     S.quizzes = asList(cat?.quizzes);
@@ -159,8 +160,9 @@ function render() {
   if (!DB) { m.innerHTML = viewSetup(); wireSetup(); return; }
   if (!S.ready) { m.innerHTML = `<div class="empty"><b>Chargement du parcours…</b></div>`; return; }
   const banner = S.error ? `<div class="banner" style="margin-bottom:18px">${esc(S.error)}</div>` : "";
-  m.innerHTML = banner + ({ home: viewHome, subjects: viewSubjects, dash: viewDash, parents: viewParents }[S.view] || viewHome)();
+  m.innerHTML = banner + ({ home: viewHome, subjects: viewSubjects, plan: viewPlan, dash: viewDash, parents: viewParents }[S.view] || viewHome)();
   if (S.view === "dash") wireDash();
+  if (S.view === "plan") wirePlan();
   if (S.view === "parents") wireParents();
 }
 
@@ -211,6 +213,7 @@ function viewHome() {
   const todo = S.quizzes.filter(q => !resultsOfQuiz(q.id).length).slice(0, 4);
   const recent = S.results.slice(0, 5);
   return `<div class="view">
+    ${todayCard()}
     <div><span class="eyebrow">Choisis ta ligne</span><h2>Tes matières</h2></div>
     <div class="grid">${S.subjects.map(subjectCard).join("")}</div>
     <div class="split">
@@ -321,10 +324,11 @@ function viewParents() {
   const f = S.parentForm;
   const sid = S.pSubject && (S.pSubject === "__new" || byId(S.subjects, S.pSubject)) ? S.pSubject : (S.subjects[0]?.id || "__new");
   const lid = S.pLesson && (S.pLesson === "__new" || (byId(S.lessons, S.pLesson)?.subjectId === sid)) ? S.pLesson : (lessonsOf(sid)[0]?.id || "__new");
-  const hasFractions = S.quizzes.some(q => /fractions-quiz/.test(q.file || ""));
+  const packs = (S.packs || []).filter(pk => !S.quizzes.some(q => q.file === pk.quiz[0]));
   return `<div class="view">
     ${pageHero("Atelier mécanique", "Espace parents", PHOTO("falaise"), { pos: "center 30%", side: `<button class="btn ghost small" id="p-lock">Verrouiller</button>` })}
-    ${hasFractions ? "" : `<div class="card form"><h3>Contenu de départ</h3><p class="notice" style="margin:0">Importe en un clic les deux versions du quiz des fractions et la carte mentale.</p><div><button class="btn" id="p-seed">Importer les fractions</button></div></div>`}
+    ${packs.length ? `<div class="card form"><h3>Leçons prêtes à importer</h3><p class="notice" style="margin:0">Ces leçons sont déjà dans le dossier contenu du site. Un clic les ajoute au parcours.</p>
+      <div class="list">${packs.map(pk => `<div class="qv"><div class="t"><b>${esc(pk.matiere)} · ${esc(pk.lecon)}</b><span class="muted" style="font-size:14px">${pk.titres?.length ? esc(pk.titres.join(", ")) : `${pk.quiz.length} version${pk.quiz.length > 1 ? "s" : ""} de quiz`}${pk.cartes.length ? ` · ${pk.cartes.length} carte${pk.cartes.length > 1 ? "s" : ""} mentale${pk.cartes.length > 1 ? "s" : ""}` : ""}</span></div><button class="btn small" data-seed="${esc(pk.id)}" type="button">Importer</button></div>`).join("")}</div></div>` : ""}
     <div class="card"><form class="form" id="add-form">
       <div class="seg" role="group" aria-label="Type d'ajout">
         <button type="button" data-pf="quiz" aria-pressed="${f === "quiz"}">Ajouter un quiz</button>
@@ -385,7 +389,7 @@ function wireParents() {
   form.addEventListener("submit", onAdd);
   $("#p-save-settings").addEventListener("click", saveSettings);
   $("#p-cover-reset")?.addEventListener("click", async () => { try { await api("cover", "DELETE"); await api("settings", "PUT", { ...S.settings, coverV: null }); toast("Illustration rétablie"); loadAll(); } catch (e) { toast(dbMessage(e)); } });
-  $("#p-seed")?.addEventListener("click", seedFractions);
+  document.querySelectorAll("[data-seed]").forEach(b => b.addEventListener("click", () => seedPack(b)));
 }
 
 const readText = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("Lecture du fichier impossible.")); r.readAsText(f); });
@@ -412,10 +416,10 @@ async function ensureSubjectLesson() {
   S.pSubject = sid; S.pLesson = lid;
   return { sid, lid };
 }
-async function addQuiz(lid, html, file, n) {
+async function addQuiz(lid, html, file, n, label) {
   const id = newId();
   await api(`quizHtml/${id}`, "PUT", { html });
-  await api(`catalog/quizzes/${id}`, "PUT", { lessonId: lid, label: `Version ${n}`, file, createdAt: Date.now() + n });
+  await api(`catalog/quizzes/${id}`, "PUT", { lessonId: lid, label: label || `Version ${n}`, file, createdAt: Date.now() + n });
 }
 async function onAdd(e) {
   e.preventDefault();
@@ -453,24 +457,31 @@ async function onAdd(e) {
     const m = $("#p-msg"); if (m) m.textContent = err instanceof DbError ? dbMessage(err) : err.message;
   } finally { const b = $("#p-submit"); if (b) b.disabled = false; }
 }
-async function seedFractions() {
-  const b = $("#p-seed"); b.disabled = true; b.textContent = "Import en cours…";
+async function loadPacks() {
+  try { const r = await fetch("contenu/packs.json", { cache: "no-cache" }); if (r.ok) S.packs = await r.json(); } catch {}
+}
+async function seedPack(btn) {
+  const pk = (S.packs || []).find(x => x.id === btn.dataset.seed); if (!pk) return;
+  btn.disabled = true; btn.textContent = "Import…";
   try {
-    const get = async p => { const r = await fetch(p); if (!r.ok) throw new Error(`Fichier introuvable : ${p}`); return r.text(); };
-    const [q1, q2, carte] = await Promise.all(["contenu/fractions-quiz-v1.html", "contenu/fractions-quiz-v2.html", "contenu/fractions-carte-mentale.html"].map(get));
-    let sid = S.subjects.find(s => /^maths?/i.test(s.name))?.id;
-    if (!sid) { sid = newId(); await api(`catalog/subjects/${sid}`, "PUT", { name: "Maths", color: "#ff7a2f", createdAt: Date.now() }); }
-    let lid = S.lessons.find(l => l.subjectId === sid && /fraction/i.test(l.title))?.id;
-    if (!lid) { lid = newId(); await api(`catalog/lessons/${lid}`, "PUT", { subjectId: sid, title: "Les fractions", createdAt: Date.now() }); }
-    const n = quizzesOf(lid).length;
-    await addQuiz(lid, q1, "fractions-quiz-v1.html", n + 1);
-    await addQuiz(lid, q2, "fractions-quiz-v2.html", n + 2);
-    const mid = newId();
-    await api(`mapData/${mid}`, "PUT", { data: carte });
-    await api(`catalog/maps/${mid}`, "PUT", { lessonId: lid, title: "Carte mentale des fractions", kind: "html", createdAt: Date.now() });
-    toast("Fractions importées");
+    const get = async f => { const r = await fetch("contenu/" + f); if (!r.ok) throw new Error(`Fichier introuvable : contenu/${f}`); return r.text(); };
+    const quizHtml = await Promise.all(pk.quiz.map(get));
+    const mapHtml = await Promise.all(pk.cartes.map(c => get(c.fichier)));
+    const norm = x => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    let sid = S.subjects.find(sb => norm(sb.name) === norm(pk.matiere))?.id;
+    if (!sid) { sid = newId(); await api(`catalog/subjects/${sid}`, "PUT", { name: pk.matiere, color: pk.couleur || SUBJECT_COLORS[S.subjects.length % SUBJECT_COLORS.length], createdAt: Date.now() }); }
+    let lid = S.lessons.find(l => l.subjectId === sid && norm(l.title) === norm(pk.lecon))?.id;
+    if (!lid) { lid = newId(); await api(`catalog/lessons/${lid}`, "PUT", { subjectId: sid, title: pk.lecon, createdAt: Date.now() }); }
+    let n = quizzesOf(lid).length;
+    for (let i = 0; i < pk.quiz.length; i++) await addQuiz(lid, quizHtml[i], pk.quiz[i], ++n, pk.titres?.[i]);
+    for (let i = 0; i < pk.cartes.length; i++) {
+      const mid = newId();
+      await api(`mapData/${mid}`, "PUT", { data: mapHtml[i] });
+      await api(`catalog/maps/${mid}`, "PUT", { lessonId: lid, title: pk.cartes[i].titre, kind: "html", createdAt: Date.now() + i });
+    }
+    toast(`${pk.lecon} : importé`);
     await loadAll();
-  } catch (err) { toast(err instanceof DbError ? dbMessage(err) : err.message); const bb = $("#p-seed"); if (bb) { bb.disabled = false; bb.textContent = "Importer les fractions"; } }
+  } catch (err) { toast(err instanceof DbError ? dbMessage(err) : err.message); btn.disabled = false; btn.textContent = "Importer"; }
 }
 async function saveSettings() {
   try {
@@ -565,13 +576,213 @@ window.addEventListener("message", e => {
   if (d && d.type === "quiz-score") saveScore(Number(d.score), Number(d.total), true);
 });
 
+/* ======================= Planning ======================= */
+// Chaque créneau = 1 heure : { date: "AAAA-MM-JJ", hour: 17, subjectId, lessonId?, quizId?, note?, done? }
+const PLAN_HOURS = Array.from({ length: 14 }, (_, i) => 8 + i); // 8 h → 21 h (dernier créneau 21 h – 22 h)
+const DAY_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const DAY_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const pad2 = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+const addDays = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; };
+const fmtDay = d => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+const hourLabel = h => `${h} h – ${h + 1} h`;
+S.plan = S.plan || [];
+S.weekStart = mondayOf(new Date());
+S.planDay = (new Date().getDay() + 6) % 7;
+const planNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+const slotAt = (date, hour) => S.plan.find(p => p.date === date && p.hour === hour);
+function slotDone(p) {
+  if (p.done) return true;
+  return S.results.some(r => ymd(new Date(r.at)) === p.date &&
+    (p.quizId ? r.quizId === p.quizId : p.lessonId ? r.lessonId === p.lessonId : r.subjectId === p.subjectId));
+}
+function slotState(p) {
+  if (slotDone(p)) return "done";
+  const end = new Date(p.date + "T00:00:00"); end.setHours(p.hour + 1);
+  return end < new Date() ? "missed" : "todo";
+}
+function slotTexts(p) {
+  const s = byId(S.subjects, p.subjectId), l = byId(S.lessons, p.lessonId), q = byId(S.quizzes, p.quizId);
+  return { s, l, q, title: s?.name || "Matière supprimée", detail: [l?.title, q?.label].filter(Boolean).join(" · ") };
+}
+function slotBlock(p, compact) {
+  const { s, title, detail } = slotTexts(p), st = slotState(p);
+  const mark = st === "done" ? `<span class="pl-st ok" title="Fait">✓</span>` : st === "missed" ? `<span class="pl-st miss" title="Pas encore fait">!</span>` : "";
+  return `<span class="pl-block ${st}" style="--sc:${esc(s?.color || "var(--muted)")}">
+    <span class="pl-t">${esc(title)}${mark}</span>
+    ${detail && !compact ? `<span class="pl-d">${esc(detail)}</span>` : detail ? `<span class="pl-d">${esc(detail)}</span>` : ""}
+    ${p.note ? `<span class="pl-n">${esc(p.note)}</span>` : ""}</span>`;
+}
+
+function viewPlan() {
+  const ws = S.weekStart, days = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
+  const first = ymd(days[0]), last = ymd(days[6]), today = ymd(new Date());
+  const week = S.plan.filter(p => p.date >= first && p.date <= last);
+  const nDone = week.filter(slotDone).length;
+  const prevFirst = ymd(addDays(ws, -7)), prevLast = ymd(addDays(ws, -1));
+  const prevCount = S.plan.filter(p => p.date >= prevFirst && p.date <= prevLast).length;
+  const isThisWeek = ymd(mondayOf(new Date())) === first;
+  const perSubject = S.subjects.map(s => ({ s, n: week.filter(p => p.subjectId === s.id).length })).filter(x => x.n);
+  const cell = (d, h) => {
+    const date = ymd(d), p = slotAt(date, h);
+    return `<button class="pl-cell${p ? " filled" : ""}${date === today ? " today" : ""}" data-slot="${date}|${h}" aria-label="${DAY_LONG[(d.getDay() + 6) % 7]} ${fmtDay(d)}, ${hourLabel(h)}${p ? " : " + esc(slotTexts(p).title) : ", libre"}">${p ? slotBlock(p) : `<span class="pl-plus">+</span>`}</button>`;
+  };
+  const dsel = S.planDay, dd = days[dsel];
+  return `<div class="view">
+    ${pageHero("Ton programme", "Planning", PHOTO("pierrier"), { pos: "center 60%", sub: week.length ? `${week.length} créneau${week.length > 1 ? "x" : ""} d'1 h cette semaine · ${nDone} fait${nDone > 1 ? "s" : ""}` : "Aucun créneau prévu cette semaine" })}
+    <div class="pl-bar">
+      <div class="pl-nav">
+        <button class="btn ghost small" data-week="-1" aria-label="Semaine précédente">‹</button>
+        <b class="num">Semaine du ${fmtDay(days[0])} au ${fmtDay(days[6])}</b>
+        <button class="btn ghost small" data-week="1" aria-label="Semaine suivante">›</button>
+        ${isThisWeek ? "" : `<button class="btn ghost small" data-week="0">Cette semaine</button>`}
+      </div>
+      <div class="pl-actions">
+        ${prevCount ? `<button class="btn ghost small" id="pl-copy">Copier la semaine précédente (${prevCount})</button>` : ""}
+      </div>
+    </div>
+    ${perSubject.length ? `<div class="pl-sum">${perSubject.map(x => `<span class="pill" style="background:color-mix(in srgb, ${esc(x.s.color)} 18%, transparent);color:${esc(x.s.color)}">${esc(x.s.name)} · ${x.n} h</span>`).join("")}<span class="pl-legend"><span class="pl-st ok">✓</span> fait <span class="pl-st miss">!</span> pas encore fait</span></div>` : `<p class="notice" style="margin:0">Touche un créneau libre pour y placer une révision d'une heure.</p>`}
+
+    <div class="pl-week" role="grid">
+      <div class="pl-corner"></div>
+      ${days.map((d, i) => `<div class="pl-dh${ymd(d) === today ? " today" : ""}"><b>${DAY_SHORT[i]}</b><span class="num">${d.getDate()}</span></div>`).join("")}
+      ${PLAN_HOURS.map(h => `<div class="pl-h num">${h} h</div>${days.map(d => cell(d, h)).join("")}`).join("")}
+    </div>
+
+    <div class="pl-day">
+      <div class="pl-days">${days.map((d, i) => { const n = week.filter(p => p.date === ymd(d)).length;
+        return `<button class="pl-dchip${i === dsel ? " on" : ""}${ymd(d) === today ? " today" : ""}" data-pday="${i}"><b>${DAY_SHORT[i]}</b><span class="num">${d.getDate()}</span>${n ? `<i>${n}</i>` : ""}</button>`; }).join("")}</div>
+      <h3 style="margin:4px 0 2px">${DAY_LONG[dsel]} ${fmtDay(dd)}</h3>
+      <div class="pl-list">${PLAN_HOURS.map(h => `<div class="pl-row"><span class="pl-h num">${h} h</span>${cell(dd, h)}</div>`).join("")}</div>
+    </div>
+  </div>`;
+}
+
+function wirePlan() {
+  const m = $("#main");
+  m.querySelectorAll("[data-week]").forEach(b => b.addEventListener("click", () => {
+    const k = Number(b.dataset.week);
+    S.weekStart = k === 0 ? mondayOf(new Date()) : addDays(S.weekStart, 7 * k);
+    S.planDay = k === 0 ? (new Date().getDay() + 6) % 7 : 0;
+    render();
+  }));
+  m.querySelectorAll("[data-pday]").forEach(b => b.addEventListener("click", () => { S.planDay = Number(b.dataset.pday); render(); }));
+  m.querySelectorAll("[data-slot]").forEach(b => b.addEventListener("click", () => { const [d, h] = b.dataset.slot.split("|"); openSlot(d, Number(h)); }));
+  $("#pl-copy")?.addEventListener("click", copyPrevWeek);
+}
+
+async function copyPrevWeek() {
+  const b = $("#pl-copy"); if (b) { b.disabled = true; b.textContent = "Copie…"; }
+  const pf = ymd(addDays(S.weekStart, -7)), pl = ymd(addDays(S.weekStart, -1));
+  const src = S.plan.filter(p => p.date >= pf && p.date <= pl);
+  let n = 0;
+  try {
+    for (const p of src) {
+      const d = new Date(p.date + "T00:00:00"); const date = ymd(addDays(d, 7));
+      if (slotAt(date, p.hour)) continue;
+      const row = { date, hour: p.hour, subjectId: p.subjectId, lessonId: p.lessonId || null, quizId: p.quizId || null, note: p.note || "", done: false, createdAt: Date.now() };
+      const id = planNewId(); await PLAN_STORE.save(id, row); S.plan.push({ id, ...row }); n++;
+    }
+    toast(n ? `${n} créneau${n > 1 ? "x" : ""} copié${n > 1 ? "s" : ""}` : "Ces créneaux sont déjà occupés");
+  } catch (err) { toast(PLAN_STORE.errText(err)); }
+  render();
+}
+
+/* ---------- Fenêtre d'édition d'un créneau ---------- */
+function ensureSheet() {
+  let el = $("#pl-sheet");
+  if (!el) { el = document.createElement("div"); el.id = "pl-sheet"; el.className = "pl-sheet"; el.hidden = true; document.body.appendChild(el); }
+  return el;
+}
+function openSlot(date, hour, keepForm) {
+  const p = slotAt(date, hour);
+  const d = new Date(date + "T00:00:00");
+  const f = keepForm || { subjectId: p?.subjectId || S.subjects[0]?.id || "", lessonId: p?.lessonId || "", quizId: p?.quizId || "", note: p?.note || "", done: !!p?.done };
+  const el = ensureSheet();
+  if (!S.subjects.length) {
+    el.innerHTML = `<div class="pl-panel card form"><h3>${DAY_LONG[(d.getDay() + 6) % 7]} ${fmtDay(d)} · ${hourLabel(hour)}</h3><p class="muted">Il faut d'abord au moins une matière. Les parents l'ajoutent dans l'onglet Parents.</p><div><button class="btn ghost" data-close>Fermer</button></div></div>`;
+  } else {
+    const ls = lessonsOf(f.subjectId), qs = f.lessonId ? quizzesOf(f.lessonId) : [];
+    const st = p ? slotState(p) : null;
+    el.innerHTML = `<form class="pl-panel card form" id="pl-form">
+      <div class="sec-head"><div><span class="eyebrow">${DAY_LONG[(d.getDay() + 6) % 7]} ${fmtDay(d)}</span><h3>${hourLabel(hour)}</h3></div>
+        ${st === "done" ? `<span class="pill n-ok">Fait</span>` : st === "missed" ? `<span class="pill n-bad">Pas encore fait</span>` : ""}</div>
+      <label class="f" for="pl-subject">Matière<select id="pl-subject">${S.subjects.map(s => `<option value="${esc(s.id)}" ${s.id === f.subjectId ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>
+      <label class="f" for="pl-lesson">Leçon<select id="pl-lesson"><option value="">Toute la matière</option>${ls.map(l => `<option value="${esc(l.id)}" ${l.id === f.lessonId ? "selected" : ""}>${esc(l.title)}</option>`).join("")}</select></label>
+      ${f.lessonId ? `<label class="f" for="pl-quiz">Quiz à faire<select id="pl-quiz"><option value="">Pas de quiz précis</option>${qs.map(q => `<option value="${esc(q.id)}" ${q.id === f.quizId ? "selected" : ""}>${esc(q.label)}</option>`).join("")}</select></label>` : ""}
+      <label class="f" for="pl-note">Consigne<span class="h">Facultatif. Ex. : relire la carte mentale, puis faire le quiz.</span><input type="text" id="pl-note" maxlength="120" value="${esc(f.note)}"></label>
+      ${p ? `<label class="pl-check" for="pl-done"><input type="checkbox" id="pl-done" ${f.done ? "checked" : ""}> Révision faite</label>` : ""}
+      <div class="pl-btns">
+        <button class="btn" type="submit">Enregistrer</button>
+        ${p && p.quizId && byId(S.quizzes, p.quizId) ? `<button class="btn ghost" type="button" id="pl-go">Lancer le quiz</button>` : p && p.lessonId ? `<button class="btn ghost" type="button" id="pl-open">Ouvrir la leçon</button>` : ""}
+        ${p ? `<button class="btn danger" type="button" id="pl-del">Libérer le créneau</button>` : ""}
+        <button class="btn ghost" type="button" data-close>Annuler</button>
+      </div>
+      <p class="notice" id="pl-msg" role="status"></p>
+    </form>`;
+  }
+  el.hidden = false; document.body.style.overflow = "hidden";
+  const read = () => ({ subjectId: $("#pl-subject").value, lessonId: $("#pl-lesson").value, quizId: $("#pl-quiz")?.value || "", note: $("#pl-note").value.trim(), done: $("#pl-done")?.checked || false });
+  el.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeSheet));
+  el.addEventListener("click", e => { if (e.target === el) closeSheet(); }, { once: true });
+  $("#pl-subject")?.addEventListener("change", () => openSlot(date, hour, { ...read(), lessonId: "", quizId: "" }));
+  $("#pl-lesson")?.addEventListener("change", () => openSlot(date, hour, { ...read(), quizId: "" }));
+  $("#pl-go")?.addEventListener("click", () => { closeSheet(); openQuiz(p.quizId); });
+  $("#pl-open")?.addEventListener("click", () => { closeSheet(); S.view = "subjects"; S.subjectId = p.subjectId; S.lessonId = p.lessonId; render(); window.scrollTo(0, 0); });
+  let armed = false;
+  $("#pl-del")?.addEventListener("click", async e => {
+    if (!armed) { armed = true; e.target.textContent = "Confirmer ?"; return; }
+    try { await PLAN_STORE.remove(p.id); S.plan = S.plan.filter(x => x.id !== p.id); toast("Créneau libéré"); closeSheet(); render(); }
+    catch (err) { $("#pl-msg").textContent = PLAN_STORE.errText(err); }
+  });
+  $("#pl-form")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    const v = read();
+    if (!v.subjectId) { $("#pl-msg").textContent = "Choisis une matière."; return; }
+    const row = { date, hour, subjectId: v.subjectId, lessonId: v.lessonId || null, quizId: v.quizId || null, note: v.note, done: !!v.done, createdAt: p?.createdAt || Date.now() };
+    const id = p?.id || planNewId();
+    try {
+      await PLAN_STORE.save(id, row);
+      S.plan = S.plan.filter(x => x.id !== id).concat([{ id, ...row }]);
+      toast(p ? "Créneau modifié" : "Révision ajoutée au planning");
+      closeSheet(); render();
+    } catch (err) { $("#pl-msg").textContent = PLAN_STORE.errText(err); }
+  });
+}
+function closeSheet() { const el = $("#pl-sheet"); if (el) { el.hidden = true; el.innerHTML = ""; } if ($("#player").hidden) document.body.style.overflow = ""; }
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#pl-sheet") && !$("#pl-sheet").hidden) closeSheet(); });
+
+/* ---------- Programme du jour (accueil) ---------- */
+function todayCard() {
+  const today = ymd(new Date());
+  const list = S.plan.filter(p => p.date === today).sort((a, b) => a.hour - b.hour);
+  const rows = list.map(p => {
+    const { title, detail } = slotTexts(p), st = slotState(p);
+    const action = p.quizId && byId(S.quizzes, p.quizId) ? `<button class="btn small" data-play="${esc(p.quizId)}">${st === "done" ? "Refaire" : "Go"}</button>`
+      : p.lessonId && byId(S.lessons, p.lessonId) ? `<button class="btn small ghost" data-lesson-open="${esc(p.subjectId)}|${esc(p.lessonId)}">Ouvrir</button>` : "";
+    return `<div class="qv"><span class="pl-hour num">${p.hour} h</span><div class="t"><b>${esc(title)}${detail ? " · " + esc(detail) : ""}</b><span class="muted" style="font-size:14px">${p.note ? esc(p.note) : hourLabel(p.hour)}</span></div>
+      ${st === "done" ? `<span class="pill n-ok">Fait</span>` : st === "missed" ? `<span class="pill n-bad">À rattraper</span>` : ""}${action}</div>`;
+  }).join("");
+  return `<div class="card"><div class="sec-head" style="margin-bottom:6px"><h3>Au programme aujourd'hui</h3><button class="btn small ghost" data-go="plan">Planning</button></div>
+    ${rows || `<p class="muted" style="margin:6px 0 0">Rien de prévu aujourd'hui. Ajoute un créneau d'une heure dans le planning.</p>`}</div>`;
+}
+
+const PLAN_STORE = {
+  save: (id, row) => api(`planning/${id}`, "PUT", row),
+  remove: id => api(`planning/${id}`, "DELETE"),
+  errText: err => err instanceof DbError ? dbMessage(err) : (err?.message || "L'enregistrement a échoué."),
+};
+
 /* ======================= Événements ======================= */
 $("#tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; S.view = b.dataset.view; if (S.view === "subjects") { S.subjectId = null; S.lessonId = null; } render(); window.scrollTo(0, 0); });
 $("#main").addEventListener("click", e => {
-  const t = e.target.closest("[data-subject],[data-lesson],[data-crumb],[data-play],[data-map],[data-go],[data-del],[data-delres]");
+  const t = e.target.closest("[data-subject],[data-lesson],[data-lesson-open],[data-crumb],[data-play],[data-map],[data-go],[data-del],[data-delres]");
   if (!t) return;
   if (t.dataset.del || t.dataset.delres) { e.preventDefault(); e.stopPropagation(); return onDelete(t); }
   if (t.dataset.subject) { S.view = "subjects"; S.subjectId = t.dataset.subject; S.lessonId = null; render(); window.scrollTo(0, 0); }
+  else if (t.dataset.lessonOpen) { const [sid, lid] = t.dataset.lessonOpen.split("|"); S.view = "subjects"; S.subjectId = sid; S.lessonId = lid; render(); window.scrollTo(0, 0); }
   else if (t.dataset.lesson) { S.lessonId = t.dataset.lesson; render(); window.scrollTo(0, 0); }
   else if (t.dataset.crumb === "root") { S.subjectId = null; S.lessonId = null; render(); }
   else if (t.dataset.crumb === "subject") { S.lessonId = null; render(); }
@@ -594,8 +805,9 @@ $("#main").addEventListener("change", async e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#player").hidden) closePlayer(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && DB && $("#player").hidden) loadAll(); });
-setInterval(() => { if (!document.hidden && DB && $("#player").hidden && S.view !== "parents") loadAll(); }, 60000);
+setInterval(() => { if (!document.hidden && DB && $("#player").hidden && S.view !== "parents" && !($("#pl-sheet") && !$("#pl-sheet").hidden)) loadAll(); }, 60000);
 
 /* ======================= Démarrage ======================= */
 render();
+loadPacks();
 if (DB) loadAll();

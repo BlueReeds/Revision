@@ -61,7 +61,7 @@ Pour modifier `config.js` plus tard : ouvre le fichier sur GitHub, clique sur l'
 ## Étape 4 : premier lancement
 
 1. Ouvre le site, va dans l'onglet **Parents** et tape le code.
-2. Clique sur **Importer les fractions** : les deux versions du quiz et la carte mentale sont ajoutées.
+2. Dans **Leçons prêtes à importer**, clique sur **Importer** pour chaque leçon : les fractions (Maths) et le présent de l'indicatif (Français).
 3. Mets le prénom de l'élève et, si tu veux, une photo de son VTT pour l'accueil.
 4. Envoie le lien à ton fils. Sur son téléphone, il peut l'ajouter à l'écran d'accueil (Partager → « Sur l'écran d'accueil »).
 
@@ -82,6 +82,23 @@ parent.postMessage({ type: "quiz-score", score: 9, total: 12 }, "*");
 ```
 
 Les quiz du dossier `contenu/` le font déjà. Pour les autres quiz, l'élève tape sa note en bas de l'écran.
+
+## Ajouter une leçon prête à importer
+
+Quand Claude te prépare une nouvelle leçon pour Ride & Révise, il te donne les fichiers à déposer dans `contenu/` et la ligne à ajouter dans `contenu/packs.json`. Le bouton **Importer** apparaît alors dans l'espace parents.
+
+Tu peux aussi simplement ajouter les fichiers .html depuis l'appli, avec le formulaire **Ajouter un quiz**.
+
+## Planning de révision
+
+L'onglet **Planning** montre la semaine en créneaux d'une heure, de 8 h à 22 h.
+
+- **Ajouter une révision** : touche un créneau libre, puis choisis la matière, et si tu veux la leçon, le quiz à faire et une consigne.
+- **Suivi automatique** : un créneau passe à « fait » (✓) dès qu'un quiz de cette leçon est terminé ce jour-là. On peut aussi cocher « Révision faite » à la main. Un créneau passé et pas fait est marqué d'un point rouge.
+- **Copier la semaine précédente** : reprend tous les créneaux de la semaine d'avant, pratique pour un emploi du temps qui se répète.
+- **Accueil** : la carte « Au programme aujourd'hui » liste les révisions du jour, avec un bouton pour lancer directement le quiz.
+
+Sur téléphone, le planning s'affiche jour par jour. Sur ordinateur, toute la semaine est visible d'un coup.
 
 ## Les photos
 
@@ -110,7 +127,7 @@ Le dépôt GitHub est public, donc tout le monde peut voir les images qu'il cont
 | `index.html` | La page et sa mise en forme |
 | `app.js` | Le fonctionnement de l'appli |
 | `config.js` | Adresse Firebase et code parents |
-| `contenu/` | Quiz et carte mentale des fractions, pour l'import de départ |
+| `contenu/` | Leçons prêtes à importer (quiz et cartes mentales) et leur liste `packs.json` |
 | `images/` | Photos de fond |
 
 ## Limites de l'offre gratuite de Firebase

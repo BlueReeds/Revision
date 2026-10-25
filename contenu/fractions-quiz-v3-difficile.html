@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Quiz des fractions · piste noire</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=Patrick+Hand&display=swap">
+<style>
+/* Une question à la fois sur papier à carreaux, barre de progression en haut, explication après chaque réponse */
+:root {
+  --paper: #f7f9fc; --grid: #dfe7f2; --ink: #1d2433; --muted: #5a6478; --card: #ffffff; --line: #c9d3e3;
+  --accent: #1d2433; --accent-bg: #e4e7ee;
+  --ok: #138a5c; --ok-bg: #e2f5ec; --bad: #c42b3c; --bad-bg: #fce6e9;
+  --f-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-hand: "Patrick Hand", "Comic Sans MS", cursive;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #e8edf5; --accent-bg: #252d3b; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #141a24; --grid: #1f2836; --ink: #e8edf5; --muted: #9aa5ba; --card: #1b2230; --line: #334058;
+  --accent: #e8edf5; --accent-bg: #252d3b; --ok: #4fd19c; --ok-bg: #16302a; --bad: #ff7686; --bad-bg: #3a1c22; color-scheme: dark }
+* { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body {
+  margin: 0; background-color: var(--paper); color: var(--ink);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px; font-family: var(--f-body); font-size: 17px; line-height: 1.5;
+}
+.wrap { max-width: 640px; margin: 0 auto; padding-block: 24px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: 32px; margin: 0; }
+.count { font-family: var(--f-hand); font-size: 20px; color: var(--muted); }
+.bar { height: 8px; background: var(--line); border-radius: 99px; margin: 12px 0 20px; overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.card { background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.theme { font-family: var(--f-hand); font-size: 19px; color: var(--accent); }
+.q { font-size: 20px; font-weight: 700; line-height: 1.4; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.f { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.f > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 1px; }
+.f > span:last-child { padding: 1px 3px 0; }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opt { font: inherit; font-size: 20px; color: var(--ink); background: var(--paper); border: 2px solid var(--line); border-radius: 14px;
+  min-height: 72px; padding: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 2px; }
+@media (hover: hover) { .opt:hover:not(:disabled) { border-color: var(--accent); } }
+.opt, .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+.opt:active:not(:disabled) { transform: scale(.97); }
+.opt:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.opt.good { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.opt.wrong { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+.opt:disabled { cursor: default; }
+.fb { border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.fb.good { background: var(--ok-bg); } .fb.wrong { background: var(--bad-bg); }
+.fb strong { font-family: var(--f-display); font-size: 20px; }
+.fb.good strong { color: var(--ok); } .fb.wrong strong { color: var(--bad); }
+.fb .why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.btn { min-height: 52px; font: inherit; font-weight: 700; font-size: 18px; background: var(--accent); color: var(--card); border: 0; border-radius: 12px; padding: 12px 20px; cursor: pointer; align-self: flex-end; }
+.end { text-align: center; align-items: center; }
+.score { font-family: var(--f-display); font-weight: 800; font-size: 64px; line-height: 1; color: var(--accent); }
+.msg { font-family: var(--f-hand); font-size: 22px; }
+.recap { list-style: none; margin: 0; padding: 0; width: 100%; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+.recap li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 6px 10px; border-radius: 10px; background: var(--paper); }
+.recap .m { font-weight: 700; width: 22px; }
+.recap .ok { color: var(--ok); } .recap .ko { color: var(--bad); }
+@media (max-width: 520px) {
+  body { font-size: 16px; }
+  .wrap { padding-block: 14px 28px; }
+  h1 { font-size: 26px; }
+  .card { padding: 16px; gap: 14px; border-radius: 16px; }
+  .q { font-size: 19px; justify-content: center; text-align: center; }
+  .opt { font-size: 22px; min-height: 80px; }
+  .btn { align-self: stretch; }
+}
+@media (max-width: 340px) { .opts { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .bar > div { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Fractions · piste noire</h1><span class="count" id="count"></span></header>
+  <div class="bar"><div id="bar"></div></div>
+  <main id="app"></main>
+</div>
+<script>
+// Écriture : {3/4} devient une fraction, "-{3/4}" une fraction négative.
+const Q = [
+  { t: "Priorités · parenthèses", q: "({2/3} − {5/6}) × {4/5} = ?", a: "-{2/15}", w: ["{2/15}", "-{1/5}", "-{3/11}"],
+    e: "Parenthèses d'abord : {4/6} − {5/6} = -{1/6}. Puis -{1/6} × {4/5} = -{4/30} = -{2/15}" },
+  { t: "Priorités · × avant −", q: "{3/4} − {1/4} × {2/3} = ?", a: "{7/12}", w: ["{1/3}", "{1/2}", "{5/12}"],
+    e: "La multiplication d'abord : {1/4} × {2/3} = {1/6}. Puis {9/12} − {2/12} = {7/12}. ({1/3} est le piège : on a fait la soustraction en premier.)" },
+  { t: "Division · nombres relatifs", q: "-{5/6} ÷ (-{10/9}) = ?", a: "{3/4}", w: ["-{3/4}", "{25/27}", "{4/3}"],
+    e: "Moins par moins donne plus. {5/6} × {9/10} = {45/60} = {3/4}" },
+  { t: "Priorités · ÷ avant −", q: "1 − {2/3} ÷ {4/9} = ?", a: "-{1/2}", w: ["{3/4}", "{1/2}", "-{5/9}"],
+    e: "La division d'abord : {2/3} × {9/4} = {18/12} = {3/2}. Puis 1 − {3/2} = -{1/2}" },
+  { t: "Calcul en étages", q: "({1/2} + {1/3}) ÷ ({1/2} − {1/3}) = ?", a: "5", w: ["1", "{5/36}", "{1/5}"],
+    e: "En haut : {5/6}. En bas : {1/6}. Puis {5/6} ÷ {1/6} = {5/6} × 6 = 5" },
+  { t: "Comparer", q: "Laquelle est la plus grande ?", a: "{5/6}", w: ["{7/9}", "{11/15}", "{4/5}"],
+    e: "Sur 90 : {7/9} = {70/90}, {5/6} = {75/90}, {11/15} = {66/90}, {4/5} = {72/90}. La plus grande est {5/6}" },
+  { t: "Problème · fraction du reste", q: "Hugo roule {2/5} du parcours le matin, puis {1/3} du reste l'après-midi. Quelle fraction du parcours lui reste-t-il ?", a: "{2/5}", w: ["{4/15}", "{1/5}", "{8/15}"],
+    e: "Après le matin, il reste {3/5}. L'après-midi : {1/3} × {3/5} = {1/5}. Il reste {3/5} − {1/5} = {2/5}. ({4/15} est le piège : {1/3} porte sur le reste, pas sur tout le parcours.)" },
+  { t: "Problème · fraction de fraction", q: "Une sortie fait 120 km. Hugo en a roulé les {3/4} des {2/5}. Combien de km a-t-il roulés ?", a: "36 km", w: ["30 km", "45 km", "48 km"],
+    e: "{3/4} × {2/5} = {6/20} = {3/10}. Puis {3/10} × 120 = 36 km" },
+  { t: "Priorités · nombres relatifs", q: "-{2/3} + {5/4} × (-{2/15}) = ?", a: "-{5/6}", w: ["{5/6}", "-{7/90}", "-{1/2}"],
+    e: "La multiplication d'abord : {5/4} × (-{2/15}) = -{10/60} = -{1/6}. Puis -{4/6} − {1/6} = -{5/6}" },
+  { t: "Trouver le nombre manquant", q: "x × {3/7} = {6/5}. Combien vaut x ?", a: "{14/5}", w: ["{18/35}", "{5/14}", "{3/5}"],
+    e: "x = {6/5} ÷ {3/7} = {6/5} × {7/3} = {42/15} = {14/5}" },
+  { t: "Trouver le nombre manquant", q: "{5/8} − ? = {1/6}", a: "{11/24}", w: ["{19/24}", "{1/4}", "{11/48}"],
+    e: "? = {5/8} − {1/6} = {15/24} − {4/24} = {11/24}" },
+  { t: "Simplifier avant de multiplier", q: "{14/15} × {25/21} = ? (forme irréductible)", a: "{10/9}", w: ["{9/10}", "{5/3}", "{39/36}"],
+    e: "14 = 2 × 7, 21 = 3 × 7, 25 = 5 × 5, 15 = 3 × 5. On simplifie par 7 et par 5 : {2 × 5/3 × 3} = {10/9}" },
+  { t: "Règle des signes", q: "(-{3/4}) × (-{2/9}) × (-{6/5}) = ?", a: "-{1/5}", w: ["{1/5}", "-{11/18}", "-{1/4}"],
+    e: "Trois signes moins : le résultat est négatif. {3 × 2 × 6/4 × 9 × 5} = {36/180} = {1/5}, donc -{1/5}" },
+  { t: "Puissance", q: "(2 − {1/3})² = ?", a: "{25/9}", w: ["{10/3}", "{25/3}", "{11/9}"],
+    e: "2 − {1/3} = {5/3}. Puis ({5/3})² = {5 × 5/3 × 3} = {25/9}. On élève au carré le haut ET le bas." },
+  { t: "Problème · deux réductions", q: "Un VTT coûte 900 €. Il est soldé de {1/5}, puis le prix soldé baisse encore de {1/4}. Quel est le prix final ?", a: "540 €", w: ["495 €", "630 €", "585 €"],
+    e: "Après la 1re baisse : 900 × {4/5} = 720 €. Après la 2e : 720 × {3/4} = 540 €. (495 € est le piège : on ne peut pas additionner {1/5} et {1/4} car ils ne portent pas sur le même prix.)" },
+  { t: "Défi", q: "Quelle fraction est exactement au milieu entre {1/3} et {1/2} ?", a: "{5/12}", w: ["{2/5}", "{5/6}", "{1/6}"],
+    e: "Le milieu, c'est la moyenne : ({1/3} + {1/2}) ÷ 2 = {5/6} ÷ 2 = {5/12}" },
+];
+
+const fr = s => s.replace(/(-?)\{([^/{}]+)\/([^{}]+)\}/g,
+  (_, m, n, d) => (m ? "−" : "") + `<span class="f"><span>${n}</span><span>${d}</span></span>`);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+const app = document.getElementById("app"), bar = document.getElementById("bar"), count = document.getElementById("count");
+let i = 0, score = 0, results = [];
+
+function show() {
+  window.scrollTo(0, 0);
+  const item = Q[i];
+  count.textContent = `Question ${i + 1} / ${Q.length}`;
+  bar.style.width = (i / Q.length * 100) + "%";
+  const opts = shuffle([item.a, ...item.w]);
+  app.innerHTML = `<div class="card">
+    <span class="theme">${item.t}</span>
+    <div class="q">${fr(item.q)}</div>
+    <div class="opts">${opts.map((o, k) => `<button class="opt" id="opt${k}" data-v="${o}">${fr(o)}</button>`).join("")}</div>
+    <div id="fb"></div></div>`;
+  app.querySelectorAll(".opt").forEach(b => b.addEventListener("click", () => answer(b, item)));
+}
+
+function answer(btn, item) {
+  const ok = btn.dataset.v === item.a;
+  if (ok) score++;
+  results.push(ok);
+  app.querySelectorAll(".opt").forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === item.a) b.classList.add("good");
+  });
+  if (!ok) btn.classList.add("wrong");
+  const last = i === Q.length - 1;
+  document.getElementById("fb").outerHTML = `<div class="fb ${ok ? "good" : "wrong"}">
+      <strong>${ok ? "Bravo !" : "Pas tout à fait…"}</strong>
+      <div class="why">${fr(item.e)}</div></div>
+    <button class="btn" id="next">${last ? "Voir mon score" : "Question suivante →"}</button>`;
+  const nx = document.getElementById("next");
+  nx.focus({ preventScroll: true });
+  nx.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+  nx.addEventListener("click", () => { i++; last ? end() : show(); });
+}
+
+function end() {
+  try { parent.postMessage({ type: "quiz-score", score, total: Q.length }, "*"); } catch (e) {}
+  bar.style.width = "100%";
+  count.textContent = "Terminé";
+  const r = score / Q.length;
+  const msg = r === 1 ? "Piste noire validée, sans une chute !" :
+              r >= .75 ? "Très fort sur une piste noire ! Revois les pièges que tu as ratés." :
+              r >= .5 ? "Pas mal ! Relis la carte mentale et recommence." :
+                        "Piste difficile : relis la carte mentale (priorités et signes surtout), puis retente.";
+  app.innerHTML = `<div class="card end">
+    <div class="score">${score}/${Q.length}</div>
+    <div class="msg">${msg}</div>
+    <ul class="recap">${Q.map((q, k) => `<li><span class="m ${results[k] ? "ok" : "ko"}">${results[k] ? "✓" : "✗"}</span>${q.t} : ${fr(q.q)}</li>`).join("")}</ul>
+    <button class="btn" id="again" style="align-self:center">Recommencer</button></div>`;
+  document.getElementById("again").addEventListener("click", () => { i = 0; score = 0; results = []; show(); });
+}
+
+show();
+</script>
+</body>
+</html>
