@@ -89,6 +89,20 @@ Quand Claude te prépare une nouvelle leçon pour Ride & Révise, il te donne le
 
 Tu peux aussi simplement ajouter les fichiers .html depuis l'appli, avec le formulaire **Ajouter un quiz**.
 
+## Évaluations
+
+Chaque matière a une section **Évaluations**, sous la liste des leçons.
+
+**Côté parents** (espace parents déverrouillé) :
+- **+ Nouvelle évaluation** : un titre, la leçon concernée (facultatif), une date limite (facultatif), l'énoncé écrit directement et/ou un fichier (PDF, photo ou page .html).
+- Quand une copie arrive, la matière affiche « 1 à corriger ». Ouvre l'évaluation, consulte la copie, puis mets une **note** (sur 20 ou un autre barème) et un **commentaire**.
+
+**Côté élève** :
+- Il ouvre l'énoncé, puis **Prendre une page en photo** (l'appareil photo du téléphone s'ouvre) ou **Choisir des fichiers** (photos ou PDF scanné). Il peut ajouter plusieurs pages, en retirer, écrire un message, puis **Envoyer ma copie**.
+- Il voit ensuite sa note et le commentaire dans l'évaluation. Le tableau de bord résume les évaluations à rendre, en correction et corrigées.
+
+Les photos sont réduites automatiquement (environ 300 Ko par page) avant l'envoi. Un PDF peut faire jusqu'à 8 Mo.
+
 ## Planning de révision
 
 L'onglet **Planning** montre la semaine en créneaux d'une heure, de 8 h à 22 h.

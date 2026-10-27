@@ -102,7 +102,8 @@ const asList = o => Object.entries(o || {}).map(([id, v]) => ({ id, ...v }));
 
 async function loadAll() {
   try {
-    const [cat, res, set, pl] = await Promise.all([api("catalog"), api("results"), api("settings"), api("planning")]);
+    const [cat, res, set, pl, cps, grs] = await Promise.all([api("catalog"), api("results"), api("settings"), api("planning"), api("copies"), api("grades")]);
+    S.evals = asList(cat?.evals); S.copies = asList(cps).map(c => ({ ...c, files: c.files || [] })); S.grades = asList(grs);
     S.plan = asList(pl).filter(p => p && p.date);
     S.subjects = asList(cat?.subjects).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     S.lessons = asList(cat?.lessons);
@@ -163,6 +164,8 @@ function render() {
   m.innerHTML = banner + ({ home: viewHome, subjects: viewSubjects, plan: viewPlan, dash: viewDash, parents: viewParents }[S.view] || viewHome)();
   if (S.view === "dash") wireDash();
   if (S.view === "plan") wirePlan();
+  if (S.view === "subjects" && S.evalId) wireEval();
+  if (S.view === "dash") m.querySelector(".view")?.insertAdjacentHTML("beforeend", evalDashCard());
   if (S.view === "parents") wireParents();
 }
 
@@ -235,6 +238,7 @@ function resultMini(r) {
   return `<div class="qv"><div class="t"><b>${esc(l?.title || "Quiz supprimé")}${q ? " · " + esc(q.label) : ""}</b><span class="muted" style="font-size:14px">${fmtDateTime(r.at)} · ${r.score}/${r.total}</span></div>${trailHtml(r.note20)}<span class="note ${nClass(r.note20)} num">${fmtN(r.note20)}</span></div>`;
 }
 function viewSubjects() {
+  if (S.evalId && byId(S.evals, S.evalId)) return viewEval();
   if (S.lessonId && byId(S.lessons, S.lessonId)) return viewLesson();
   if (S.subjectId && byId(S.subjects, S.subjectId)) return viewSubject();
   if (!S.subjects.length) return `<div class="view">${emptyCatalog()}</div>`;
@@ -249,7 +253,7 @@ function viewSubject() {
       const qs = quizzesOf(l.id), ms = mapsOf(l.id), rs = S.results.filter(r => r.lessonId === l.id), a = avg(rs);
       return `<button class="lesson-row" data-lesson="${esc(l.id)}"><div class="t"><b>${esc(l.title)}</b><span class="muted num" style="font-size:14px">${qs.length} version${qs.length > 1 ? "s" : ""} de quiz · ${ms.length} carte${ms.length > 1 ? "s" : ""} mentale${ms.length > 1 ? "s" : ""}${rs.length ? ` · ${rs.length} essai${rs.length > 1 ? "s" : ""}` : ""}</span></div>
         ${a != null ? `<span class="note ${nClass(a)} num">${fmtN(a)}</span>` : ""}<span class="chev">›</span></button>`;
-    }).join("") : `<div class="empty"><b>Aucune leçon</b><span>Rien ici pour l'instant.</span></div>`}</div></div>`;
+    }).join("") : `<div class="empty"><b>Aucune leçon</b><span>Rien ici pour l'instant.</span></div>`}</div>${evalSection(s)}</div>`;
 }
 function viewLesson() {
   const l = byId(S.lessons, S.lessonId), s = byId(S.subjects, l.subjectId);
@@ -546,7 +550,9 @@ async function openMap(mid) {
     else if (m.kind === "image") body.innerHTML = `<img class="mapimg" src="${d.data}" alt="${esc(m.title)}">`;
     else {
       const blob = await (await fetch(d.data)).blob(); if (blobUrl) URL.revokeObjectURL(blobUrl); blobUrl = URL.createObjectURL(blob);
-      body.innerHTML = `<iframe id="pl-frame" title="${esc(m.title)}" src="${blobUrl}"></iframe>`;
+      body.innerHTML = `<div class="ev-viewer"><div class="ev-pdf"></div></div>`;
+      try { await renderPdfInto(body.querySelector(".ev-pdf"), d.data); }
+      catch { body.innerHTML = `<iframe id="pl-frame" title="${esc(m.title)}" src="${blobUrl}"></iframe>`; }
       $("#pl-extra").innerHTML = `<a class="btn small" href="${blobUrl}" target="_blank" rel="noopener" download="${esc(m.title)}.pdf">Ouvrir le PDF</a>`;
     }
   } catch { const body = $("#pl-body"); if (body) body.innerHTML = `<div class="empty" style="margin:20px;flex:1"><b>Carte introuvable</b><span>Ferme et réessaie.</span></div>`; }
@@ -775,17 +781,297 @@ const PLAN_STORE = {
   errText: err => err instanceof DbError ? dbMessage(err) : (err?.message || "L'enregistrement a échoué."),
 };
 
+/* ---------- Affichage des PDF page par page (pdf.js, chargé à la demande) ---------- */
+const PDFJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+let pdfjsLoading = null;
+function loadPdfJs() {
+  if (window.pdfjsLib && window.pdfjsWorker) return Promise.resolve(window.pdfjsLib);
+  if (!pdfjsLoading) {
+    const add = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    // Le « worker » est chargé dans la page : pdf.js l'utilise directement, sans Web Worker séparé.
+    pdfjsLoading = add(PDFJS_BASE + "pdf.min.js").then(() => add(PDFJS_BASE + "pdf.worker.min.js")).then(() => window.pdfjsLib)
+      .catch(err => { pdfjsLoading = null; throw err; });
+  }
+  return pdfjsLoading;
+}
+async function renderPdfInto(container, dataUrl) {
+  const lib = await loadPdfJs();
+  const bin = atob(dataUrl.slice(dataUrl.indexOf(",") + 1)), bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const doc = await lib.getDocument({ data: bytes }).promise;
+  const w = Math.max(280, Math.min(900, (container.clientWidth || 900) - 24)), dpr = Math.min(2, window.devicePixelRatio || 1);
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n), base = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: w / base.width * dpr });
+    const c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    c.className = "ev-page"; c.style.width = w + "px"; c.setAttribute("aria-label", `Page ${n} sur ${doc.numPages}`);
+    container.appendChild(c);
+    await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+  }
+}
+
+/* ======================= Évaluations ======================= */
+// Évaluation : { subjectId, lessonId?, title, consigne?, file?: {id, kind, name}, due?: "AAAA-MM-JJ", createdAt }
+// Copie de l'élève : { evalId, subjectId, at, files: [{id, kind, name}], message? }
+// Correction (parents) : { grade, outOf, comment, at }  — rangée à part, sous l'id de la copie
+S.evals = S.evals || []; S.copies = S.copies || []; S.grades = S.grades || [];
+S.evalId = null; S.pendingPages = [];
+const evNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const evalsOf = sid => S.evals.filter(e => e.subjectId === sid).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (a.createdAt || 0) - (b.createdAt || 0));
+const copiesOf = eid => S.copies.filter(c => c.evalId === eid).sort((a, b) => b.at - a.at);
+const gradeOf = cid => S.grades.find(g => g.id === cid);
+const fmtLongDate = s => new Date(s + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+function evalStatus(e) {
+  const cs = copiesOf(e.id);
+  const graded = cs.map(c => gradeOf(c.id)).find(Boolean);
+  if (graded) return { key: "graded", label: `Corrigée · ${fmtN(graded.grade)}/${graded.outOf || 20}`, cls: nClass(graded.grade / (graded.outOf || 20) * 20) };
+  if (cs.length) return { key: "sent", label: `Rendue le ${fmtDate(cs[0].at)}`, cls: "n-mid" };
+  if (e.due && e.due < ymdLocal(new Date())) return { key: "late", label: "En retard", cls: "n-bad" };
+  return { key: "todo", label: e.due ? `À rendre pour le ${fmtDate(new Date(e.due + "T12:00:00"))}` : "À rendre", cls: "n-sky" };
+}
+const ymdLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+async function evShrink(file, max = 1700, q = .74) {
+  const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("Lecture du fichier impossible.")); r.readAsDataURL(file); });
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("Cette image n'a pas pu être lue. Utilise une photo en JPG ou PNG.")); i.src = url; });
+  const k = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q);
+}
+const evReadUrl = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("Lecture du fichier impossible.")); r.readAsDataURL(f); });
+const evReadText = f => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("Lecture du fichier impossible.")); r.readAsText(f); });
+async function fileToStored(f) {
+  if (/^image\//.test(f.type) || /\.(jpe?g|png|webp|heic)$/i.test(f.name)) return { kind: "image", data: await evShrink(f), name: f.name };
+  if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) { if (f.size > 8 * 1024 * 1024) throw new Error(`« ${f.name} » dépasse 8 Mo. Compresse le PDF ou envoie des photos.`); return { kind: "pdf", data: await evReadUrl(f), name: f.name }; }
+  if (/\.html?$/i.test(f.name)) return { kind: "html", data: await evReadText(f), name: f.name };
+  throw new Error(`« ${f.name} » n'est pas accepté. Envoie des photos, un PDF ou une page .html.`);
+}
+
+/* ---------- Section dans la page d'une matière ---------- */
+function evalSection(s) {
+  const es = evalsOf(s.id), parent = EVAL_STORE.isParent();
+  const rows = es.map(e => {
+    const st = evalStatus(e), l = byId(S.lessons, e.lessonId);
+    const toGrade = parent ? copiesOf(e.id).filter(c => !gradeOf(c.id)).length : 0;
+    return `<button class="lesson-row" data-eval="${esc(e.id)}"><div class="t"><b>${esc(e.title)}</b><span class="muted" style="font-size:14px">${l ? esc(l.title) + " · " : ""}${e.due ? "pour le " + esc(fmtLongDate(e.due)) : "sans date limite"}</span></div>
+      ${toGrade ? `<span class="pill n-mid">${toGrade} à corriger</span>` : ""}<span class="pill ${st.cls}">${esc(st.label)}</span><span class="chev">›</span></button>`;
+  }).join("");
+  return `<div class="ev-sec">
+    <div class="sec-head"><div><span class="eyebrow">Contrôles et devoirs</span><h3>Évaluations</h3></div>${parent ? `<button class="btn small" id="ev-new" data-ev-sub="${esc(s.id)}">+ Nouvelle évaluation</button>` : ""}</div>
+    <div class="list">${rows || `<div class="empty"><b>Aucune évaluation</b><span>${parent ? "Ajoute un énoncé avec le bouton « Nouvelle évaluation »." : "Les évaluations ajoutées par tes parents apparaîtront ici."}</span></div>`}</div></div>`;
+}
+
+/* ---------- Page d'une évaluation ---------- */
+function viewEval() {
+  const e = byId(S.evals, S.evalId), s = byId(S.subjects, e.subjectId), l = byId(S.lessons, e.lessonId);
+  const parent = EVAL_STORE.isParent(), st = evalStatus(e), cs = copiesOf(e.id);
+  const fileLabel = { pdf: "PDF", image: "IMG", html: "WEB" };
+  const pend = S.pendingPages;
+  return `<div class="view">
+    <div class="crumbs"><button data-crumb="root">Matières</button><span class="muted">/</span><button data-ev-back="1">${esc(s?.name)}</button><span class="muted">/</span><span>Évaluation</span></div>
+    ${pageHero(esc(s?.name || "") + " · évaluation", esc(e.title), subjectPhotoSafe(s), { color: s?.color, sub: `${l ? esc(l.title) + " · " : ""}${e.due ? "À rendre pour le " + esc(fmtLongDate(e.due)) : "Sans date limite"}` })}
+    <div class="split">
+      <div class="card form"><div class="sec-head"><h3>Énoncé</h3><span class="pill ${st.cls}">${esc(st.label)}</span></div>
+        ${e.consigne ? `<div class="ev-consigne">${esc(e.consigne).replace(/\n/g, "<br>")}</div>` : ""}
+        ${e.file ? `<button class="map-item" data-ev-file="${esc(e.file.id)}|${esc(e.file.kind)}|${esc(e.title)}"><span class="ic">${fileLabel[e.file.kind] || "DOC"}</span><span><b>Ouvrir l'énoncé</b><br><span class="muted" style="font-size:13px">${esc(e.file.name || "")}</span></span></button>` : ""}
+        ${!e.consigne && !e.file ? `<p class="muted" style="margin:0">Pas d'énoncé joint.</p>` : ""}
+        ${parent ? `<div class="pl-btns"><button class="btn ghost small" id="ev-edit">Modifier</button><button class="btn danger small" id="ev-del">Supprimer l'évaluation</button></div>` : ""}
+      </div>
+      <div class="card form"><h3>${cs.length ? "Envoyer une nouvelle copie" : "Rendre ma copie"}</h3>
+        <p class="notice" style="margin:0">Prends chaque page en photo, bien à plat et à la lumière, ou ajoute un PDF scanné. Tu peux mettre plusieurs pages.</p>
+        <div class="ev-pick">
+          <label class="btn" for="ev-cam">Prendre une page en photo</label><input type="file" id="ev-cam" accept="image/*" capture="environment" hidden>
+          <label class="btn ghost" for="ev-files">Choisir des fichiers</label><input type="file" id="ev-files" accept="image/*,application/pdf" multiple hidden>
+        </div>
+        ${pend.length ? `<div class="ev-thumbs">${pend.map((p, i) => `<div class="ev-thumb">${p.kind === "image" ? `<img src="${p.data}" alt="Page ${i + 1}">` : `<span class="ic">PDF</span>`}<span class="num">Page ${i + 1}</span><button type="button" class="ev-x" data-ev-rm="${i}" aria-label="Retirer la page ${i + 1}">×</button></div>`).join("")}</div>
+          <label class="f" for="ev-msg">Message pour tes parents<span class="h">Facultatif</span><input type="text" id="ev-msg" maxlength="200" placeholder="Ex. : j'ai bloqué sur l'exercice 3"></label>
+          <div><button class="btn" id="ev-send">Envoyer ma copie (${pend.length} page${pend.length > 1 ? "s" : ""})</button></div>` : ""}
+        <p class="notice" id="ev-status" role="status"></p>
+      </div>
+    </div>
+    <div class="card"><h3 style="margin-bottom:8px">Copies rendues</h3>
+      ${cs.length ? cs.map(c => {
+        const g = gradeOf(c.id);
+        return `<div class="ev-copy"><div class="qv" style="border:0;padding-top:0"><div class="t"><b>Copie du ${fmtDateTime(c.at)}</b><span class="muted" style="font-size:14px">${c.files.length} page${c.files.length > 1 ? "s" : ""}${c.message ? " · « " + esc(c.message) + " »" : ""}</span></div>
+          ${g ? `<span class="note ${nClass(g.grade / (g.outOf || 20) * 20)} num">${fmtN(g.grade)}/${g.outOf || 20}</span>` : `<span class="pill n-mid">En attente de correction</span>`}
+          <button class="btn small ghost" data-ev-copy="${esc(c.id)}">Voir</button></div>
+          ${g?.comment ? `<div class="ev-comment"><b>Commentaire :</b> ${esc(g.comment)}</div>` : ""}
+          ${parent ? `<form class="ev-grade" data-ev-grade="${esc(c.id)}"><label class="f">Note<span class="ev-g"><input type="text" inputmode="decimal" name="grade" value="${g ? esc(String(g.grade).replace(".", ",")) : ""}" placeholder="14"> / <input type="text" inputmode="numeric" name="outOf" value="${esc(String(g?.outOf || 20))}"></span></label>
+            <label class="f" style="flex:1">Commentaire<input type="text" name="comment" maxlength="300" value="${esc(g?.comment || "")}" placeholder="Ex. : bon raisonnement, attention aux signes"></label>
+            <div class="pl-btns"><button class="btn small" type="submit">${g ? "Modifier la note" : "Enregistrer la note"}</button><button class="btn small danger" type="button" data-ev-delcopy="${esc(c.id)}">Supprimer la copie</button></div></form>` : ""}
+        </div>`;
+      }).join("") : `<p class="muted" style="margin:0">Aucune copie pour l'instant.</p>`}
+    </div>
+  </div>`;
+}
+const subjectPhotoSafe = s => (typeof subjectPhoto === "function" ? subjectPhoto(s) : null);
+
+function wireEval() {
+  const e = byId(S.evals, S.evalId); if (!e) return;
+  const st = $("#ev-status");
+  const addFiles = async files => {
+    st.textContent = "Préparation des pages…";
+    try { for (const f of files) S.pendingPages.push(await fileToStored(f)); st.textContent = ""; render(); }
+    catch (err) { st.textContent = err.message; }
+  };
+  $("#ev-cam")?.addEventListener("change", ev => addFiles([...ev.target.files]));
+  $("#ev-files")?.addEventListener("change", ev => addFiles([...ev.target.files]));
+  document.querySelectorAll("[data-ev-rm]").forEach(b => b.addEventListener("click", () => { S.pendingPages.splice(Number(b.dataset.evRm), 1); render(); }));
+  $("#ev-send")?.addEventListener("click", async () => {
+    const btn = $("#ev-send"); btn.disabled = true;
+    const msg = $("#ev-msg")?.value.trim() || "";
+    try {
+      const files = [];
+      for (let i = 0; i < S.pendingPages.length; i++) {
+        const p = S.pendingPages[i]; st.textContent = `Envoi de la page ${i + 1} sur ${S.pendingPages.length}…`;
+        const id = evNewId(); await EVAL_STORE.putFile(id, p.data); files.push({ id, kind: p.kind, name: p.name || `page-${i + 1}` });
+      }
+      const cid = evNewId(), row = { evalId: e.id, subjectId: e.subjectId, at: Date.now(), files, message: msg };
+      await EVAL_STORE.saveCopy(cid, row);
+      S.copies = S.copies.filter(c => c.id !== cid).concat([{ id: cid, ...row }]);
+      S.pendingPages = []; toast("Copie envoyée !"); render();
+    } catch (err) { st.textContent = EVAL_STORE.errText(err); btn.disabled = false; }
+  });
+  document.querySelectorAll("[data-ev-file]").forEach(b => b.addEventListener("click", () => { const [id, kind, title] = b.dataset.evFile.split("|"); openEvalFiles(title, [{ id, kind }]); }));
+  document.querySelectorAll("[data-ev-copy]").forEach(b => b.addEventListener("click", () => { const c = byId(S.copies, b.dataset.evCopy); if (c) openEvalFiles(`Copie du ${fmtDateTime(c.at)}`, c.files); }));
+  document.querySelectorAll("[data-ev-grade]").forEach(f => f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const grade = Number(f.grade.value.replace(",", ".")), outOf = Number(f.outOf.value.replace(",", ".")) || 20;
+    if (!(grade >= 0) || grade > outOf) { toast(`La note doit être entre 0 et ${outOf}.`); return; }
+    const row = { grade, outOf, comment: f.comment.value.trim(), at: Date.now() };
+    try { await EVAL_STORE.saveGrade(f.dataset.evGrade, row); S.grades = S.grades.filter(g => g.id !== f.dataset.evGrade).concat([{ id: f.dataset.evGrade, ...row }]); toast("Note enregistrée"); render(); }
+    catch (err) { toast(EVAL_STORE.errText(err)); }
+  }));
+  const confirmBtn = (btn, fn) => { let armed = false; btn?.addEventListener("click", async () => { if (!armed) { armed = true; btn.textContent = "Confirmer ?"; return; } try { await fn(); } catch (err) { toast(EVAL_STORE.errText(err)); } }); };
+  document.querySelectorAll("[data-ev-delcopy]").forEach(b => confirmBtn(b, async () => {
+    const c = byId(S.copies, b.dataset.evDelcopy);
+    for (const f of c?.files || []) await EVAL_STORE.deleteFile(f.id).catch(() => {});
+    await EVAL_STORE.deleteCopy(c.id); await EVAL_STORE.deleteGrade(c.id).catch(() => {});
+    S.copies = S.copies.filter(x => x.id !== c.id); toast("Copie supprimée"); render();
+  }));
+  confirmBtn($("#ev-del"), async () => {
+    for (const c of copiesOf(e.id)) { for (const f of c.files || []) await EVAL_STORE.deleteFile(f.id).catch(() => {}); await EVAL_STORE.deleteCopy(c.id); await EVAL_STORE.deleteGrade(c.id).catch(() => {}); }
+    if (e.file) await EVAL_STORE.deleteFile(e.file.id).catch(() => {});
+    await EVAL_STORE.deleteEval(e.id);
+    S.evals = S.evals.filter(x => x.id !== e.id); S.evalId = null; toast("Évaluation supprimée"); render();
+  });
+  $("#ev-edit")?.addEventListener("click", () => openEvalForm(e.subjectId, e));
+}
+
+/* ---------- Visionneuse (énoncé ou copie) ---------- */
+async function openEvalFiles(title, files) {
+  const p = $("#player");
+  p.innerHTML = `<div class="player-bar gut"><div class="t"><b>${esc(title)}</b><span>${files.length > 1 ? files.length + " pages" : ""}</span></div><span id="ev-extra"></span><button class="btn ghost small" id="pl-close">Fermer</button></div>
+    <div id="ev-body" class="ev-viewer"><div class="empty" style="margin:20px"><b>Chargement…</b></div></div>`;
+  p.hidden = false; document.body.style.overflow = "hidden";
+  $("#pl-close").addEventListener("click", closePlayer);
+  try {
+    const parts = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i], data = await EVAL_STORE.getFile(f.id);
+      if (!data) { parts.push(`<div class="empty"><b>Page ${i + 1} introuvable</b></div>`); continue; }
+      if (f.kind === "image") parts.push(`<img src="${data}" alt="Page ${i + 1}" class="ev-page">`);
+      else if (f.kind === "html") parts.push(`<iframe class="ev-frame" sandbox="allow-scripts" title="${esc(title)}" data-html="${i}"></iframe>`), (f._html = data);
+      else parts.push(`<div class="ev-pdf" data-pdf="${i}"></div>`), (f._pdf = data);
+    }
+    const body = $("#ev-body"); if (!body) return;
+    body.innerHTML = parts.join("");
+    body.querySelectorAll("iframe[data-html]").forEach(fr => { fr.srcdoc = wrapDoc(files[Number(fr.dataset.html)]._html); });
+    for (const box of body.querySelectorAll("[data-pdf]")) {
+      const data = files[Number(box.dataset.pdf)]._pdf;
+      box.innerHTML = `<p class="muted" style="text-align:center">Ouverture du PDF…</p>`;
+      try { await renderPdfInto(box, data); box.querySelector("p")?.remove(); }
+      catch {
+        const url = URL.createObjectURL(await (await fetch(data)).blob());
+        box.innerHTML = `<iframe class="ev-frame" src="${url}" title="PDF"></iframe><p class="muted" style="text-align:center">Si le PDF ne s'affiche pas, ouvre l'appli dans un autre navigateur.</p>`;
+      }
+    }
+  } catch (err) { const body = $("#ev-body"); if (body) body.innerHTML = `<div class="empty" style="margin:20px"><b>Chargement impossible</b><span>${esc(EVAL_STORE.errText(err))}</span></div>`; }
+}
+
+/* ---------- Formulaire parents : nouvelle évaluation ---------- */
+function openEvalForm(subjectId, existing) {
+  let el = $("#pl-sheet");
+  if (!el) { el = document.createElement("div"); el.id = "pl-sheet"; el.className = "pl-sheet"; document.body.appendChild(el); }
+  const e = existing || {};
+  const ls = lessonsOf(subjectId);
+  el.innerHTML = `<form class="pl-panel card form" id="ev-form">
+    <div><span class="eyebrow">${esc(byId(S.subjects, subjectId)?.name || "")}</span><h3>${existing ? "Modifier l'évaluation" : "Nouvelle évaluation"}</h3></div>
+    <label class="f" for="ev-title">Titre<input type="text" id="ev-title" maxlength="80" value="${esc(e.title || "")}" placeholder="Ex. : Contrôle sur les fractions"></label>
+    <label class="f" for="ev-lesson">Leçon<select id="ev-lesson"><option value="">Toute la matière</option>${ls.map(l => `<option value="${esc(l.id)}" ${l.id === e.lessonId ? "selected" : ""}>${esc(l.title)}</option>`).join("")}</select></label>
+    <label class="f" for="ev-due">À rendre pour le<span class="h">Facultatif</span><input type="date" id="ev-due" value="${esc(e.due || "")}"></label>
+    <label class="f" for="ev-text">Énoncé ou consignes<span class="h">Tu peux écrire l'énoncé ici, joindre un fichier, ou les deux.</span><textarea id="ev-text" rows="4" maxlength="4000">${esc(e.consigne || "")}</textarea></label>
+    <label class="f" for="ev-efile">Fichier de l'énoncé<span class="h">${e.file ? `Actuel : ${esc(e.file.name || "fichier joint")}. Choisis un fichier pour le remplacer.` : "PDF, photo ou page .html"}</span><input type="file" id="ev-efile" accept="image/*,application/pdf,.html,.htm,text/html"></label>
+    <div class="pl-btns"><button class="btn" type="submit" id="ev-save">${existing ? "Enregistrer" : "Créer l'évaluation"}</button><button class="btn ghost" type="button" data-close>Annuler</button></div>
+    <p class="notice" id="ev-fmsg" role="status"></p></form>`;
+  el.hidden = false; document.body.style.overflow = "hidden";
+  const close = () => { el.hidden = true; el.innerHTML = ""; if ($("#player").hidden) document.body.style.overflow = ""; };
+  el.querySelector("[data-close]").addEventListener("click", close);
+  $("#ev-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const msg = $("#ev-fmsg"), title = $("#ev-title").value.trim();
+    if (!title) { msg.textContent = "Donne un titre à l'évaluation."; return; }
+    $("#ev-save").disabled = true; msg.textContent = "Enregistrement…";
+    try {
+      let file = e.file || null;
+      const f = $("#ev-efile").files?.[0];
+      if (f) { const stored = await fileToStored(f); const fid = evNewId(); await EVAL_STORE.putFile(fid, stored.data); if (file) await EVAL_STORE.deleteFile(file.id).catch(() => {}); file = { id: fid, kind: stored.kind, name: f.name }; }
+      const id = e.id || evNewId();
+      const row = { subjectId, lessonId: $("#ev-lesson").value || null, title, consigne: $("#ev-text").value.trim(), file, due: $("#ev-due").value || null, createdAt: e.createdAt || Date.now() };
+      await EVAL_STORE.saveEval(id, row);
+      S.evals = S.evals.filter(x => x.id !== id).concat([{ id, ...row }]);
+      close(); toast(existing ? "Évaluation modifiée" : "Évaluation créée");
+      S.view = "subjects"; S.subjectId = subjectId; S.lessonId = null; S.evalId = id; render(); window.scrollTo(0, 0);
+    } catch (err) { msg.textContent = EVAL_STORE.errText(err); $("#ev-save").disabled = false; }
+  });
+}
+
+/* ---------- Carte du tableau de bord ---------- */
+function evalDashCard() {
+  const graded = S.copies.map(c => ({ c, g: gradeOf(c.id), e: byId(S.evals, c.evalId) })).filter(x => x.g && x.e).sort((a, b) => b.g.at - a.g.at);
+  const waiting = S.copies.filter(c => !gradeOf(c.id) && byId(S.evals, c.evalId)).length;
+  const todo = S.evals.filter(e => !copiesOf(e.id).length).length;
+  if (!S.evals.length) return "";
+  return `<div class="card"><div class="sec-head" style="margin-bottom:6px"><h3>Évaluations</h3><span class="muted" style="font-size:14px">${todo} à rendre · ${waiting} en correction · ${graded.length} corrigée${graded.length > 1 ? "s" : ""}</span></div>
+    ${graded.length ? graded.slice(0, 8).map(({ c, g, e }) => { const s = byId(S.subjects, e.subjectId), n20 = g.grade / (g.outOf || 20) * 20;
+      return `<div class="qv"><div class="t"><b>${esc(e.title)}</b><span class="muted" style="font-size:14px">${esc(s?.name || "")} · rendue le ${fmtDate(c.at)}${g.comment ? " · " + esc(g.comment) : ""}</span></div><span class="note ${nClass(n20)} num">${fmtN(g.grade)}/${g.outOf || 20}</span><button class="btn small ghost" data-open-eval="${esc(e.id)}">Voir</button></div>`; }).join("")
+      : `<p class="muted" style="margin:0">Aucune évaluation corrigée pour l'instant.</p>`}</div>`;
+}
+
+/* ---------- Navigation propre aux évaluations ---------- */
+document.addEventListener("click", ev => {
+  const t = ev.target.closest("[data-eval],[data-ev-back],#ev-new,[data-open-eval]"); if (!t || !$("#main").contains(t)) return;
+  if (t.id === "ev-new") { openEvalForm(t.dataset.evSub); return; }
+  if (t.dataset.evBack) { S.evalId = null; S.pendingPages = []; render(); return; }
+  const id = t.dataset.eval || t.dataset.openEval, e = byId(S.evals, id); if (!e) return;
+  S.view = "subjects"; S.subjectId = e.subjectId; S.lessonId = null; S.evalId = id; S.pendingPages = []; render(); window.scrollTo(0, 0);
+});
+
+const EVAL_STORE = {
+  isParent: () => S.unlocked,
+  putFile: (id, data) => api(`files/${id}`, "PUT", { data }),
+  getFile: async id => (await api(`files/${id}`))?.data || null,
+  deleteFile: id => api(`files/${id}`, "DELETE"),
+  saveEval: (id, row) => api(`catalog/evals/${id}`, "PUT", row),
+  deleteEval: id => api(`catalog/evals/${id}`, "DELETE"),
+  saveCopy: (id, row) => api(`copies/${id}`, "PUT", row),
+  deleteCopy: id => api(`copies/${id}`, "DELETE"),
+  saveGrade: (id, row) => api(`grades/${id}`, "PUT", row),
+  deleteGrade: id => api(`grades/${id}`, "DELETE"),
+  errText: err => err instanceof DbError ? dbMessage(err) : (err?.message || "L'enregistrement a échoué."),
+};
+
 /* ======================= Événements ======================= */
-$("#tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; S.view = b.dataset.view; if (S.view === "subjects") { S.subjectId = null; S.lessonId = null; } render(); window.scrollTo(0, 0); });
+$("#tabs").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; S.view = b.dataset.view; if (S.view === "subjects") { S.subjectId = null; S.lessonId = null; S.evalId = null; } render(); window.scrollTo(0, 0); });
 $("#main").addEventListener("click", e => {
   const t = e.target.closest("[data-subject],[data-lesson],[data-lesson-open],[data-crumb],[data-play],[data-map],[data-go],[data-del],[data-delres]");
   if (!t) return;
   if (t.dataset.del || t.dataset.delres) { e.preventDefault(); e.stopPropagation(); return onDelete(t); }
-  if (t.dataset.subject) { S.view = "subjects"; S.subjectId = t.dataset.subject; S.lessonId = null; render(); window.scrollTo(0, 0); }
+  if (t.dataset.subject) { S.view = "subjects"; S.subjectId = t.dataset.subject; S.lessonId = null; S.evalId = null; render(); window.scrollTo(0, 0); }
   else if (t.dataset.lessonOpen) { const [sid, lid] = t.dataset.lessonOpen.split("|"); S.view = "subjects"; S.subjectId = sid; S.lessonId = lid; render(); window.scrollTo(0, 0); }
   else if (t.dataset.lesson) { S.lessonId = t.dataset.lesson; render(); window.scrollTo(0, 0); }
-  else if (t.dataset.crumb === "root") { S.subjectId = null; S.lessonId = null; render(); }
-  else if (t.dataset.crumb === "subject") { S.lessonId = null; render(); }
+  else if (t.dataset.crumb === "root") { S.subjectId = null; S.lessonId = null; S.evalId = null; render(); }
+  else if (t.dataset.crumb === "subject") { S.lessonId = null; S.evalId = null; render(); }
   else if (t.dataset.play) openQuiz(t.dataset.play);
   else if (t.dataset.map) openMap(t.dataset.map);
   else if (t.dataset.go) { S.view = t.dataset.go; render(); }
@@ -805,7 +1091,7 @@ $("#main").addEventListener("change", async e => {
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#player").hidden) closePlayer(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && DB && $("#player").hidden) loadAll(); });
-setInterval(() => { if (!document.hidden && DB && $("#player").hidden && S.view !== "parents" && !($("#pl-sheet") && !$("#pl-sheet").hidden)) loadAll(); }, 60000);
+setInterval(() => { if (!document.hidden && DB && $("#player").hidden && S.view !== "parents" && !($("#pl-sheet") && !$("#pl-sheet").hidden) && !S.pendingPages?.length) loadAll(); }, 60000);
 
 /* ======================= Démarrage ======================= */
 render();
