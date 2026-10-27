@@ -1,0 +1,10 @@
+Ride & Révise — version du 27 octobre 2026
+
+Contenu de cette version :
+- Onglets : Accueil, Matières, Planning, Notes (tableau de bord), Parents
+- Planning de révision par créneaux d'1 heure
+- Évaluations par matière (énoncé, copie photo/PDF de l'élève, note et commentaire des parents)
+- Affichage des PDF page par page
+- Leçons prêtes à importer : fractions (V1, V2, piste noire) et présent de l'indicatif (V1, piste noire)
+
+Pour vérifier que le site en ligne est à jour : l'onglet « Planning » doit apparaître en haut de la page.
